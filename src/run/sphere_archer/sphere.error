@@ -1,0 +1,8 @@
+rm: cannot remove `/work/n03/n03/saswata': Permission denied
+WARNING: FEniCS module is not compatible with PrgEnv-cray.
+Automatically switching to PrgEnv-gnu.
+--- Instant: compiling ---
+--- Instant: compiling ---
+--- Instant: compiling ---
+--- Instant: compiling ---
+--- Instant: compiling ---

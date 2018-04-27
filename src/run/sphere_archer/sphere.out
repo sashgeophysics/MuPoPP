@@ -1,0 +1,295 @@
+--------------------------------------------------------------------------------
+*** saswata   Job: 5263089.sdb   started: 18/04/18 19:51:54   host: mom1 ***
+*** saswata   Job: 5263089.sdb   started: 18/04/18 19:51:54   host: mom1 ***
+*** saswata   Job: 5263089.sdb   started: 18/04/18 19:51:54   host: mom1 ***
+*** saswata   Job: 5263089.sdb   started: 18/04/18 19:51:54   host: mom1 ***
+
+--------------------------------------------------------------------------------
+Process 0: Generating mesh with CGAL 3D mesh generator
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Process 0: Calling DOLFIN just-in-time (JIT) compiler, this may take some time.
+Process 0: Calling DOLFIN just-in-time (JIT) compiler, this may take some time.
+Process 0: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 0: Calling DOLFIN just-in-time (JIT) compiler, this may take some time.
+Process 6: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 20: *** -------------------------------------------------------------------------
+Process 22: *** -------------------------------------------------------------------------
+Process 14: *** -------------------------------------------------------------------------
+Process 13: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** Use "CellDiameter" or "2*Circumradius".
+*** It will (likely) be removed in the next FEniCS release.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+*** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+
+*** It will (likely) be removed in the next FEniCS release.
+
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 16: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 19: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 4: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 10: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 5: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 17: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 15: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 1: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 9: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 8: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 21: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 2: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 12: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 18: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 11: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 7: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 3: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 23: *** -------------------------------------------------------------------------
+*** Warning: "CellSize" has been deprecated in FEniCS version 2017.2.0.
+*** It will (likely) be removed in the next FEniCS release.
+*** Use "CellDiameter" or "2*Circumradius".
+*** -------------------------------------------------------------------------
+
+Process 0: Calling DOLFIN just-in-time (JIT) compiler, this may take some time.
+Process 0: Calling DOLFIN just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Process 23: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 22: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 10: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 11: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 8: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 20: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 1: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 13: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 7: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 21: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 2: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 9: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 19: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 14: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 12: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 3: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 6: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 5: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 18: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 17: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 15: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 16: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 4: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Process 0: *** Warning: Degree of exact solution may be inadequate for accurate result in errornorm.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+[1;37;34m  WARNING: The number of integration points for each cell will be: 216[0m
+[1;37;34m           Consider using the option 'quadrature_degree' to reduce the number of points[0m
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+('l2 norm:', 1.2768398036442787e-06)
+Process 0: **** t = 0: Solve phi and U
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+[1;37;34m  WARNING: The number of integration points for each cell will be: 1728[0m
+[1;37;34m           Consider using the option 'quadrature_degree' to reduce the number of points[0m
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+[1;37;34m  WARNING: The number of integration points for each cell will be: 1728[0m
+[1;37;34m           Consider using the option 'quadrature_degree' to reduce the number of points[0m
+Calling FFC just-in-time (JIT) compiler, this may take some time.
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.1
+
+Process 0: **** t = 0.1: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.2
+
+Process 0: **** t = 0.2: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.3
+
+Process 0: **** t = 0.3: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.4
+
+Process 0: **** t = 0.4: Solve phi and U
+Process 0: output results
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.5
+
+Process 0: **** t = 0.5: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.6
+
+Process 0: **** t = 0.6: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.7
+
+Process 0: **** t = 0.7: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.8
+
+Process 0: **** t = 0.8: Solve phi and U
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 0.9
+
+Process 0: **** t = 0.9: Solve phi and U
+Process 0: output results
+Process 0: **** New time step dt = 0.1
+
+Process 0: **** New time t = 1
+
+Process 0: **** t = 1: Solve phi and U
+Process 0: **** New time step dt = 1.11022e-16
+
+Process 0: **** New time t = 1
+
+Application 30557677 resources: utime ~9309s, stime ~155s, Rss ~1643544, inblocks ~9199387, outblocks ~233260
+--------------------------------------------------------------------------------
+
+Resources requested: ncpus=24,place=free,walltime=00:40:00
+Resources allocated: cpupercent=2,cput=00:00:10,mem=21712kb,ncpus=24,vmem=172264kb,walltime=00:14:18
+
+*** saswata   Job: 5263089.sdb   ended: 18/04/18 20:06:12   queue: standard ***
+*** saswata   Job: 5263089.sdb   ended: 18/04/18 20:06:12   queue: standard ***
+*** saswata   Job: 5263089.sdb   ended: 18/04/18 20:06:12   queue: standard ***
+*** saswata   Job: 5263089.sdb   ended: 18/04/18 20:06:12   queue: standard ***
+--------------------------------------------------------------------------------

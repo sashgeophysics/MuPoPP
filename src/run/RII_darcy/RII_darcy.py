@@ -55,7 +55,7 @@ logname  = param['logfile']
 out_freq = param['out_freq']
 
 #Set the problem domain
-diapir=compaction()
+rii=RII_darcy()
 
 #Initial melt fraction field
 
@@ -66,12 +66,14 @@ T = param['T']
 dt = param['dt']
 cfl = param['cfl']
 
+
 #Set nondimensional paramters
-diapir.da=param['da']
-diapir.R=param['R']
-diapir.B=param['B']
-diapir.theta=param['theta']
-diapir.dL=param['dL']
+rii.da=param['da']
+rii.R=param['R']
+rii.B=param['B']
+rii.theta=param['theta']
+rii.dL=param['dL']
+rii.Pe=param['Pe']
 # Output files for quick visualisation
 output_dir     = "output/"
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -143,10 +145,8 @@ Z = FunctionSpace(mesh, "CG", 1)
 # Boundaries
 ######################################################################
 
-
 def left_right(x, on_boundary):
     return x[0] > (x0_max - DOLFIN_EPS) or x[0] < (x0_min + DOLFIN_EPS)
-
 
 def front_back(x, on_boundary):
     return x[1] > (x1_max - DOLFIN_EPS) or x[1] < (x1_min + DOLFIN_EPS)
@@ -158,12 +158,12 @@ def front_back(x, on_boundary):
 # along the vertical walls of the domain
 noslip = Constant((0.0, 0.0, 0.0))
 
-bc0 = DirichletBC(W.sub(0), noslip, left_right)
-bc1 = DirichletBC(W.sub(0), noslip, front_back)
+#bc0 = DirichletBC(W.sub(0), noslip, left_right)
+#bc1 = DirichletBC(W.sub(0), noslip, front_back)
 
 zero = Constant(0)
 # Collect boundary conditions
-bcs = [bc0, bc1]
+#bcs = [bc0, bc1]
 
 # ======================================================================
 # Solution functions
@@ -190,8 +190,8 @@ buyoancy=Function(X)
 # Time step
 dt = Expression("dt", dt=0.0,degree=1)
 # Formulations
-a_phi, L_phi,bb_phi = diapir.mass_conservation(X, phi0, u, dt, gam,mesh)
-a_stokes, L_stokes, b = diapir.momentum_conservation(W, phi0, gam,buyoancy)
+a_phi, L_phi,bb_phi = rii.mass_conservation(X, phi0, u, dt, gam,mesh)
+
 
 
 ######################################################################
@@ -222,28 +222,7 @@ parameters["std_out_all_processes"] = False;
 ######################################################################
 #  Initial velocity field
 ######################################################################
-# Create Krylov solver and AMG preconditioner
-solver = KrylovSolver(krylov_method, "amg")
-solver.parameters["relative_tolerance"] = 0.000001
-solver.parameters["maximum_iterations"] = 3000 #000
-#solver.parameters["monitor_convergence"] = True
 
-# Assemble system
-A_stokes, b_stokes = assemble_system(a_stokes, L_stokes, bcs)
-
-# Assemble preconditioner system
-P, btmp = assemble_system(b, L_stokes, bcs)
-
-# Associate operator (A) and preconditioner matrix (P)
-solver.set_operators(A_stokes, P)
-
-# Solve
-solver.solve(U.vector(), b_stokes)
-
-# Get sub-functions
-u, p, c = U.split()
-#Calculate melt velocity
-vm = u - phi*grad(p)/phi/phi/phi
 # ======================================================================
 #  Time loop
 # ======================================================================
@@ -251,24 +230,16 @@ vm = u - phi*grad(p)/phi/phi/phi
 # Set up time setp
 dt.dt = 0.05;
 # Solver matrices
-A_phi, A_stokes = Matrix(), Matrix()
+A_phi = Matrix()
 
 # Solver RHS
-b_phi, b_stokes = Vector(), Vector()
+b_phi = Vector()
 
 # Create a ksp solver for porosity
 solver_phi = KrylovSolver(krylov_method, "amg")
 solver_phi.parameters["relative_tolerance"] = 0.000001
 solver_phi.parameters["maximum_iterations"] = 5000 #000
 #solver_phi.parameters["monitor_convergence"] = True
-
-
-
-# Create linear solver for Stokes-like problem
-solver_U = KrylovSolver(krylov_method, "amg")
-solver_U.parameters["relative_tolerance"] = 0.000001
-solver_U.parameters["maximum_iterations"] = 2000#000
-#solver_U.parameters["monitor_convergence"] = True
 
 
 tcount = 1
@@ -289,15 +260,8 @@ while (t < T):
     solver_phi.set_operators(A_phi, P_phi)
     # Solve linear Stokes-type system
     solver_phi.solve(phi1.vector(), b_phi)
-    #################################################
-##### Do this if an iterative solver is not desired
-# Solve linear porosity advection system
 
-#solver_phi.solve(phi1.vector(), b_phi)
-#solve(A_phi, phi1.vector(), b_phi, "minres", "default")
-# solve(A_phi, phi1.vector(), b_phi)
-################################################
-# Update porosity
+    # Update porosity
     phi0.assign(phi1)
     phi.interpolate(phi1)
     
@@ -318,9 +282,6 @@ while (t < T):
     if tcount % out_freq == 0:
         # Write data to files for quick visualisation
         
-        # Melt velocity field
-        #vm.rename("Melt velocity", "")
-        #vmelt_out  << vm
         
         # Velocity field
         u.rename("velocity", "")

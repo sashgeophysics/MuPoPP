@@ -143,15 +143,22 @@ Z = FunctionSpace(mesh, "CG", 1)
 # Boundaries
 ######################################################################
 
-
+#def right(x, on_boundary): return x[0] > (x0_max - DOLFIN_EPS)
+#def left(x, on_boundary): return x[0] < (x0_min + DOLFIN_EPS)
 def left_right(x, on_boundary):
     return x[0] > (x0_max - DOLFIN_EPS) or x[0] < (x0_min + DOLFIN_EPS)
 
-
+#def back(x, on_boundary): return x[1] > (x1_max -DOLFIN_EPS)
+#def front(x, on_boundary): return x[1] < (x1_max + DOLFIN_EPS)
 def front_back(x, on_boundary):
     return x[1] > (x1_max - DOLFIN_EPS) or x[1] < (x1_min + DOLFIN_EPS)
 
-
+#def top_bottom(x, on_boundary):
+    return x[2] > (x2_max - DOLFIN_EPS) or x[2] < (x2_min + DOLFIN_EPS)
+#def top(x, on_boundary):
+    return x[2] > (x2_max - DOLFIN_EPS)
+#def bottom(x, on_boundary):
+    return x[2] < (x2_min + DOLFIN_EPS)
 
 
 # Prescribe No-slip boundary condition for velocity
@@ -313,14 +320,14 @@ while (t < T):
     # Solve linear Stokes-type system
     solver_U.solve(U.vector(), b_stokes)
     #Calculate melt velocity
-    vm = u - phi*grad(p)/phi/phi/phi
-    #vm.interpolate()
+    
+    
     if tcount % out_freq == 0:
         # Write data to files for quick visualisation
         
         # Melt velocity field
         #vm.rename("Melt velocity", "")
-        #vmelt_out  << vm
+        vmelt_out  << vm
         
         # Velocity field
         u.rename("velocity", "")

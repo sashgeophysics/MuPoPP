@@ -55,7 +55,7 @@ logname  = param['logfile']
 out_freq = param['out_freq']
 
 #Set the problem domain
-diapir=compaction()
+rii=RII_darcy()
 
 #Initial melt fraction field
 
@@ -66,12 +66,14 @@ T = param['T']
 dt = param['dt']
 cfl = param['cfl']
 
+
 #Set nondimensional paramters
-diapir.da=param['da']
-diapir.R=param['R']
-diapir.B=param['B']
-diapir.theta=param['theta']
-diapir.dL=param['dL']
+rii.da=param['da']
+rii.R=param['R']
+rii.B=param['B']
+rii.theta=param['theta']
+rii.dL=param['dL']
+rii.Pe=param['Pe']
 # Output files for quick visualisation
 output_dir     = "output/"
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -143,10 +145,8 @@ Z = FunctionSpace(mesh, "CG", 1)
 # Boundaries
 ######################################################################
 
-
 def left_right(x, on_boundary):
     return x[0] > (x0_max - DOLFIN_EPS) or x[0] < (x0_min + DOLFIN_EPS)
-
 
 def front_back(x, on_boundary):
     return x[1] > (x1_max - DOLFIN_EPS) or x[1] < (x1_min + DOLFIN_EPS)
@@ -190,8 +190,8 @@ buyoancy=Function(X)
 # Time step
 dt = Expression("dt", dt=0.0,degree=1)
 # Formulations
-a_phi, L_phi,bb_phi = diapir.mass_conservation(X, phi0, u, dt, gam,mesh)
-a_stokes, L_stokes, b = diapir.momentum_conservation(W, phi0, gam,buyoancy)
+a_phi, L_phi,bb_phi = rii.mass_conservation(X, phi0, u, dt, gam,mesh)
+a_stokes, L_stokes, b = rii.momentum_conservation(W, phi0, gam,buyoancy)
 
 
 ######################################################################
@@ -314,13 +314,13 @@ while (t < T):
     solver_U.solve(U.vector(), b_stokes)
     #Calculate melt velocity
     vm = u - phi*grad(p)/phi/phi/phi
-    #vm.interpolate()
+    vm.interpolate()
     if tcount % out_freq == 0:
         # Write data to files for quick visualisation
         
         # Melt velocity field
         #vm.rename("Melt velocity", "")
-        #vmelt_out  << vm
+        vmelt_out  << vm
         
         # Velocity field
         u.rename("velocity", "")

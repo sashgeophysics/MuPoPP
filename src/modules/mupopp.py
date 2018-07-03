@@ -174,9 +174,10 @@ class compaction:
         w    = TestFunction(V)
         phi_mid = 0.5*(phi1+phi0)
         F = w*(phi1 - phi0 + dt*(dot(u, grad(phi_mid)) \
-                                 -(1.0 - phi_mid)*div(u)) - self.da*gam)*dx
+                                 -(1.0 - phi_mid)*div(u)) - dt*self.da*gam)*dx
         # SUPG stabilisation term
-        h_SUPG   = CellSize(mesh)
+        #h_SUPG   = CellSize(mesh)
+        h_SUPG   = CellDiameter(mesh)
         residual = phi1 - phi0 + dt * (dot(u, grad(phi_mid)) \
                                        - div(grad(phi_mid))-self.da*gam)
         unorm    = sqrt(dot(u, u))
@@ -258,9 +259,8 @@ class compaction:
         #    +  self.dL*phi*phi*m3*inner(grad(p),grad(q))*dx\
         #    +alpha*p*q*dx + 0.5*alpha*c*omega*dx\
         #    +  self.dL*phi*phi*m3*inner(grad(p),grad(q))*dx\
-        b = (one-phi)*inner(symgrad(u),symgrad(v))*dx+p*q*dx \
+        b = 0.5*(one-phi)*inner(symgrad(u),symgrad(v))*dx+p*q*dx \
             + (1.0/alpha)*0.5*c*omega*dx
-       
         return lhs(F), rhs(F), b
 ########################################################
 ## A class for Darcy flow of two phases
@@ -347,3 +347,85 @@ class darcy_two_phase:
         b=w*S1*dx
         return lhs(F), rhs(F),b
    
+####################################################################
+### Reaction Infiltration instability without matrix deformation
+####################################################################
+class RII_darcy(compaction):
+    """This class solves for a simpler case of compaction, 
+    matrix velocity = 0
+    The momentum conservation equation reduces to
+    -grad(p)=h                                (1)
+    Using the equation for mass conservation of the fluid and
+    momentum conservation of the fluid, using the fact that 
+    matrix velocity is zero, we get
+    u=phi*grad(p)
+    or 
+    u= -phi*h                                  (2)
+    where u is the melt velocity and
+    h = Da*grad(4*mu*Gamma/3)+(1-phi)*chi*grad(phi)/Bond
+    -(1-phi)*R*k                               (3)
+    where 
+    k=Vector(0,0,1)
+    This is a multicomponent system, so the mass of solute
+    and melt fraction are updated by the two following equations
+    d phi/dt + div(phi*u) = Da*Gamma/(1-R)      (4)
+    and 
+    phi*(dc/dt+div(phi*u))=div(phi*grad(c))/Pe
+    +Da*(1-c)*Gamma/(1-R)                       (5)
+    We prescribe an initial condition in phi and c, evaluate
+    u from equations (2) and (3) directly, and use this value
+    to march in time using equations (4) and (5)
+    """
+    
+    def __init__(self):
+        """Initiates the class. Inherits nondimensional numbers
+        from compaction, only need to add Pe"""
+        self.Pe=[]
+
+    
+    def mass_conservation(self,V,U, phi0,  dt, buyoancy,gam,mesh):
+        """ This function solves for the mass conservation 
+        equation in a multiphase  system. The governing PDE is
+        described in the class description. The weak formulation
+        is discussed in Appendix A of Allisic et al. (2014)
+        Input
+            V      : Function space for melt volume fraction and conc.
+            U      : Function space for melt velocity
+            phi0   : Melt volume fraction from previous time step
+            dt     : Length of current time step
+            gam    : A function describing melt generation
+            mesh   : Mesh for the problem
+        Returns:
+            lhs(F) : Left hand side of the bilinear form
+            rhs(F) : Right hand side of the bilinear form
+            b      : A preconditioner for iterative solution
+        """
+        phi1 = TrialFunction(V)
+        u    = TrialFunction(U)
+        w    = TestFunction(V)
+        phi_mid = 0.5*(phi1+phi0)
+
+        # Get the melt velocity from input phi
+        zhat=Constant((0.0, 0.0,1.0))      
+        chi=self.surface_tension_2(phi0)
+        u = phi0*(self.dL*(1.0-phi0)*(chi*grad(phi0)/self.B\
+             -(1.0-phi0)*self.R*buyoancy*zhat)\
+             +self.da*grad(4.0*gam/3.0/phi0))
+
+        
+        F = w*(phi1 - phi0 + dt*(dot(u, grad(phi_mid)) \
+                                 -(1.0 - phi_mid)*div(u)) - self.da*gam)*dx
+        # SUPG stabilisation term
+        #h_SUPG   = CellSize(mesh)
+        h_SUPG   = CellDiameter(mesh)
+        residual = phi1 - phi0 + dt * (dot(u, grad(phi_mid)) \
+                                       - div(grad(phi_mid))-self.da*gam)
+        unorm    = sqrt(dot(u, u))
+        aval     = 0.5*h_SUPG*unorm
+        keff     = 0.5*((aval - 1.0) + abs(aval - 1.0))
+        stab     = (keff / (unorm * unorm)) * dot(u, grad(w)) * residual * dx
+        F       += stab
+        #Return a preconditioner for solving the time marching 
+        #by iterative solution, if needed
+        b=w*phi1*dx
+        return lhs(F), rhs(F),b

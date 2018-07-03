@@ -1,5 +1,0 @@
-from fenics import *
-
-p1=Point(0,0,0)
-p2=Point(1,1,1)
-mesh=BoxMesh(p1,p2,10,10,10)

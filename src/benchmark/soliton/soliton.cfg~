@@ -1,0 +1,28 @@
+######################################################################
+# param.cfg
+#
+# Parameters for inflow_time.py
+######################################################################
+# General parameters
+logfile  = log.txt            # name of logfile to write run output to
+out_freq = 5               # frequency of VTK and integrals output
+
+
+# Mesh type parameters
+read_mesh     = 0            # flag for reading in a mesh instead of generating it
+meshfile      = circle_mesh_new.xml  # name of the mesh to read in or to write to
+
+
+
+# Parameters for time stepping
+T    = 2.0 # time to integrate to
+cfl  = 0.1                # cfl number
+dt   = 0.05            # initializing time step
+
+# Nondimensional numbers
+
+da = 0.0001       # Dahmkoehler number
+R = 0.2       # density contrast
+B = 1e6       # Bond number
+theta = 10    # Semidihedral angle
+# EOF

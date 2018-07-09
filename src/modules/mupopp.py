@@ -95,7 +95,8 @@ def parse_param_file(filename):
         opt = line.rstrip()
         opt = opt.replace(' ','') # remove any spaces padding
 
-        # Cut off any comments preceded by '#' from the string, a1 and a2 ignored  
+        # Cut off any comments preceded by '#' from the string,
+        # a1 and a2 ignored  
         (opt, a1, a2) = opt.partition('#')    
 
         # Isolate the key and value
@@ -112,6 +113,7 @@ def parse_param_file(filename):
         
     return settings
 
+    
 #########################################
 ## end utility functions
 ##########################################
@@ -145,24 +147,61 @@ class compaction:
 
     See the functions for these equations for weak formulation
     """
-    def __init__(self,param_file):
+    def __init__(self,param_file,ksp="minres"):
         """ This initiates the compaction class. The following parameters
         are needed to initiate the class:
-        Parameters
-            da    :  Damkoehler number, nondimendional
-            R     :  Density contrast, (rho_f-rho_s)/rho_s
-            B     :  Bond number
-            theta :  Dihedral angle at the melt-grain interface
-            dL    :  ratio of delta/L, dimensionless
+        Input    :
+            param_file    :  The name of the file containing parameters.
+                             This file name is passed from the command 
+                             prompt. 
+            ksp           :  Parameter for default Krylov solver 
+        Assigned :
+            da            :  Damkoehler number, nondimendional
+            R             :  Density contrast, (rho_f-rho_s)/rho_s
+            B             :  Bond number
+            theta         :  Dihedral angle at the melt-grain interface
+            dL            :  ratio of delta/L, dimensionless
+            T             :  Total time for the simulation to run
+            dt            :  Time step at each simulation
+            out_freq      :  Frequency of writing output files
+            krylov_method :  Krylov solver method for iterative
+                             solution techniques. Default is minres
+                             If minres is unavailable, then tfqmr
+                             is used.
         These parameters are used by momentum and mass conservation equations.
         They can be read from a configuration file or supplied manually.
+        During intiation
         """
-        param      = parse_param_file(param_file)
-        self.da    = param['da']
-        self.R     = param['R']
-        self.B     = param['B']
-        self.theta = param['theta']
-        self.dL    = param['dL']
+        param         = parse_param_file(param_file)
+        self.da       = param['da']
+        self.R        = param['R']
+        self.B        = param['B']
+        self.theta    = param['theta']
+        self.dL       = param['dL']
+        self.T        = param['T']
+        self.dt       = param['dt']
+        self.out_freq = param['out_freq']
+        # Test for PETSc or Tpetra
+        if not has_linear_algebra_backend("PETSc") and \
+           not has_linear_algebra_backend("Tpetra"):
+            info("DOLFIN has not been configured with Trilinos\
+            or PETSc. Exiting.")
+            exit()
+
+        if not has_krylov_solver_preconditioner("amg"):
+            info("Sorry, this demo is only available when DOLFIN \
+            is compiled with AMG " "preconditioner, Hypre or ML.")
+            exit()
+
+        if has_krylov_solver_method("minres"):
+            self.krylov_method = ksp
+        elif has_krylov_solver_method("tfqmr"):
+            self.krylov_method = "tfqmr"
+        else:
+            info("Default linear algebra backend was not \
+            compiled with MINRES or TFQMR "\
+                 "Krylov subspace method. Terminating.")
+            exit()
     def surface_tension_2(self,phi):
         """This function calculates the second derivative of surface tension
         with respect to phi. Uses the definition of contiguity from Wimert
@@ -172,14 +211,20 @@ class compaction:
         p3=-1778.00
         p4=249.00
         chi = (2.0*cos(self.theta)-1.0)*(2.0*p4+20.0*p1*phi**3+ \
-                                         12.0*p2*phi**2+6.0*p3*phi)
+                                     12.0*p2*phi**2+6.0*p3*phi)
         return(chi)
-    # Read in parameter file, store entries in dictionary
     def mass_conservation(self,V, phi0, u, dt, gam,mesh):
-        """ This function solves for the mass conservation 
-        equation in a multiphase  system. The governing PDE is
-        described in the class description. The weak formulation
-        is discussed in Appendix A of Allisic et al. (2014)
+        """ 
+        This function returns the bilinear form for mass conservation
+        in a single-component two-phase system. The governing PDE is
+        given by:
+
+        diff(phi,t) = div((1-phi)*u) + Gamma/rho
+
+        The weak formulation is discussed in Appendix A of
+        Allisic et al. (2014). Outputs from this function
+        can be used to call the function mass_solver, to solve
+        the bilinear form using iterative sparse solvers.
         Input
             V      : Function space for melt volume fraction
             phi0   : Melt volume fraction from previous time step
@@ -212,6 +257,51 @@ class compaction:
         b=w*phi1*dx
         return lhs(F), rhs(F),b
     #########################################################
+    def mass_solver(self,X,a_phi,L_phi,bb_phi,\
+                    nits=100,tol=0.000001,monitor=False):
+        """This function solves for the single component
+        two-phase mass conservation equation derived in 
+        the function mass conservation. The biinear form
+        of the equation is
+        a = L
+        and the bilinear form of the preconditioner matrix
+        is in b. The function mass_conservation must be
+        called before calling this function to create the
+        bilinear forms from the PDEs.
+        Input:
+            X       : Function space for storing the 
+                      updated melt fraction at time step t_n+1
+            a_phi   : bilinear form of LHS matrix
+            L_phi   : bilinear form of RHS matrix
+            bb_phi  : bilinear form of preconditioner matrix
+        Parameters:
+            nits    : Maximum iterations, for Krylov solver
+            tol     : Relative tolerance for residuals of the
+                      iterative solver
+            monitor : A Boolean parameter for monitoring convergence
+                      of the solution
+        output:
+            sol     : Solution containing the new melt fraction 
+        """
+
+        # Create a Krylov solver for mass conservation
+        solver_phi = KrylovSolver(self.krylov_method, "amg")
+        solver_phi.parameters["relative_tolerance"] = tol
+        solver_phi.parameters["maximum_iterations"] = nits
+        solver_phi.parameters["monitor_convergence"] = monitor
+
+        # Assemble system for porosity advection
+        A_phi, b_phi = assemble_system(a_phi, L_phi)
+        # Associate a preconditioner with the porosity advection
+        P_phi, btmp_phi=assemble_system(bb_phi, L_phi)
+        #Connect operator to equations
+        solver_phi.set_operators(A_phi, P_phi)
+        # Solve
+        sol=Function(X)
+        
+        solver_phi.solve(sol.vector(), b_phi)
+        return sol
+
     def momentum_conservation(self,W, phi, gam,buyoancy):
         """Return the bilinear form for momentum conservation
         equation using the split-field formulation, using velocity
@@ -277,10 +367,6 @@ class compaction:
         F -= -(inner(h, v)+self.da*self.R*buyoancy*gam*q\
               /(one-self.R*buyoancy))*dx
         # Bilinear form for the preconditioner     
-        #b = (one-phi)*inner(symgrad(u),symgrad(v))*dx \
-        #    +  self.dL*phi*phi*m3*inner(grad(p),grad(q))*dx\
-        #    +alpha*p*q*dx + 0.5*alpha*c*omega*dx\
-        #    +  self.dL*phi*phi*m3*inner(grad(p),grad(q))*dx\
         b = 0.5*(one-phi)*inner(symgrad(u),symgrad(v))*dx+p*q*dx \
             + (1.0/alpha)*0.5*c*omega*dx
         return lhs(F), rhs(F), b
@@ -289,13 +375,14 @@ class compaction:
         """This function sets up the amg krylov
         solver for the momentum conservation equation
         a = L 
-        Input parameters are
+        Input paraamaters are
         W       =  Mixed function space for velocity, pressure
                    and compaction
         a       =  bilinear left hand side containing u,p,C
         L       =  bilinear right hand side containing knowns
         b       =  preconditioner generated by momentum conservation
         bcs     =  Boundary conditions
+        
         tol     =  Relative tolerance for KSP solver convergence
         max_its =  Maximum KSP iterations
         monitor =  Logical parameter for monitoring convergence
@@ -307,30 +394,10 @@ class compaction:
         niter   = integer number of ksp iterations required to 
                   reach convergence
         """
-        # Test for PETSc or Tpetra
-        if not has_linear_algebra_backend("PETSc") and \
-           not has_linear_algebra_backend("Tpetra"):
-            info("DOLFIN has not been configured with Trilinos\
-            or PETSc. Exiting.")
-            exit()
-
-        if not has_krylov_solver_preconditioner("amg"):
-            info("Sorry, this demo is only available when DOLFIN \
-            is compiled with AMG " "preconditioner, Hypre or ML.")
-            exit()
-
-        if has_krylov_solver_method("minres"):
-            krylov_method = "minres"
-        elif has_krylov_solver_method("tfqmr"):
-            krylov_method = "tfqmr"
-        else:
-            info("Default linear algebra backend was not \
-            compiled with MINRES or TFQMR "\
-                 "Krylov subspace method. Terminating.")
-            exit()
+       
 
         # Create Krylov solver and AMG preconditioner
-        solver = KrylovSolver(krylov_method, "amg")
+        solver = KrylovSolver(self.krylov_method, "amg")
         solver.parameters["relative_tolerance"] = tol
         solver.parameters["maximum_iterations"] = max_its
         solver.parameters["monitor_convergence"] = monitor

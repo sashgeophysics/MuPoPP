@@ -150,15 +150,6 @@ compact_out  << c
 # Set up time setp
 dt.dt = 0.1;
 a_phi, L_phi,bb_phi = sphere.mass_conservation(X, phi0, u, dt, gam,mesh)
-# Solver matrices
-A_phi, A_stokes = Matrix(), Matrix()
-
-# Solver RHS
-b_phi, b_stokes = Vector(), Vector()
-
-
-
-
 
 tcount = 1
 while (t < sphere.T):

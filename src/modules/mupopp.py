@@ -564,11 +564,12 @@ class DarcyAdvection():
     
     """
     
-    def __init__(self,Pe=100,Da=1.0):
+    def __init__(self,Pe=100,Da=10.0,phi=0.01):
         """Initiates the class. Inherits nondimensional numbers
         from compaction, only need to add Pe"""
         self.Pe=Pe
         self.Da=Da
+        self.phi=phi
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
         """            
         """
@@ -588,8 +589,7 @@ class DarcyAdvection():
     
     def advection_diffusion(self,Q, u0, velocity, dt,mesh):
         
-        f  = Expression("0.0",degree=1)
-        
+        f  = Expression("0.0",degree=1)       
         h = CellDiameter(mesh)
         # Parameters
 
@@ -604,7 +604,45 @@ class DarcyAdvection():
         r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)
         
         # Galerkin variational problem
-        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*self.Da*u0*v*dx
+        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*self.Da*u0*v*dx
+        
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(velocity, velocity))
+        F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+        
+        return lhs(F), rhs(F)
+    def advection_diffusion_two_component(self,Q, c_prev, velocity, dt,mesh):
+        """ This function builds the bilinear form for component advection
+        diffusion for componet one. The source term depends on the concentration
+        of both components. Concentration of the other component should be
+        calculated outside this function after solving the bilinear form from
+        this step"""
+        
+        f  = Expression("0.0",degree=1)        
+        h = CellDiameter(mesh)
+        # Parameters
+        U = TrialFunction(Q)
+        (v, q) = TestFunctions(Q)
+        # u and c are the trial functions for the next time step
+        # u for comp 0 and c comp1 
+        u, c   = split(U)
+
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
+        u0 ,c0 = split(c_prev)
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + u)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+        # Residual
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)
+        
+        # Galerkin variational problem
+        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
+                + q*(c - c0)*dx + dt*f*q*self.phi*dx
         
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(velocity, velocity))

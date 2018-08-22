@@ -637,7 +637,7 @@ class DarcyAdvection():
         # First order reaction term
         f = self.Da*u0*c0
         # Residual
-        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)+c-c0+dt*f
         
         # Galerkin variational problem
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\

@@ -559,17 +559,19 @@ class darcy_two_phase:
 class DarcyAdvection():
     """
     This class solves for a simple advection-diffusion
-    equation for a single component flow, the governing
+    equation for a single or multicomponent flow, the governing
     PDEs for Darcy flow are
     
     """
     
-    def __init__(self,Pe=100,Da=10.0,phi=0.01):
+    def __init__(self,Pe=100,Da=10.0,phi=0.01,cfl=1.0e-2,dt=1.0e-2):
         """Initiates the class. Inherits nondimensional numbers
         from compaction, only need to add Pe"""
         self.Pe=Pe
         self.Da=Da
         self.phi=phi
+        self.cfl=cfl
+        self.dt=dt
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
         """            
         """
@@ -612,7 +614,7 @@ class DarcyAdvection():
         F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
         
         return lhs(F), rhs(F)
-    def advection_diffusion_two_component(self,Q, c_prev, velocity, dt,mesh):
+    def advection_diffusion_two_component_nonadaptive(self,Q, c_prev, velocity, dt,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for componet one. The source term depends on the concentration
         of both components. Concentration of the other component should be
@@ -634,11 +636,77 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + u)
 
+       
+
         # First order reaction term
         f = self.Da*u0*c0
         # Residual
         r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)+c-c0+dt*f
+
         
+
+
+        #####End adaptive time stepping
+        # Galerkin variational problem
+        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
+                + q*(c - c0)*dx + dt*f*q*self.phi*dx
+        
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(velocity, velocity))
+        F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+        
+        return lhs(F), rhs(F)
+    def advection_diffusion_two_component(self,Q, c_prev, velocity,mesh):
+        """ This function builds the bilinear form for component advection
+        diffusion for component one. The source term depends on the concentration
+        of both components. Concentration of the other component should be
+        calculated outside this function after solving the bilinear form from
+        this step"""
+        
+        f  = Expression("0.0",degree=1)        
+        h = CellDiameter(mesh)
+        # Parameters
+        U = TrialFunction(Q)
+        (v, q) = TestFunctions(Q)
+        # u and c are the trial functions for the next time step
+        # u for comp 0 and c comp1 
+        u, c   = split(U)
+
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
+        u0 ,c0 = split(c_prev)
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + u)
+
+        
+
+        # First order reaction term
+        f = self.Da*u0*c0
+        ###############################################
+        # Adaptive time-stepping added September 2018
+        # Right hand side of advection equation
+        # u.grad(c)-div(grad(c))/Pe+f
+        # Evaluate this term from the last time step
+        advect_term=dot(velocity, grad(u0)) - div(grad(u0))/self.Pe+f
+        # Create a DG function sapce to evaluate the values of this
+        DG = FunctionSpace(mesh, "DG", 0)
+        #Save it into a function 
+        advect_rhs=project(advect_term,DG)
+        # Now evaluate the maximum value of this term
+        ad_max=advect_rhs.vector().max()
+        #Compute dt for this time step such that
+        #dt*ad_max<=CFL
+        if np.abs(ad_max)>self.cfl:
+            self.dt=self.cfl/ad_max
+        
+        dt=self.dt
+        print 'dt',dt,'ad_max',ad_max
+        #####End adaptive time stepping
+        ##################################################
+        
+        # Residual
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)+c-c0+dt*f
         # Galerkin variational problem
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\

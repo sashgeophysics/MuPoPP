@@ -701,7 +701,7 @@ class DarcyAdvection():
             self.dt=self.cfl/ad_max
         
         dt=self.dt
-        print 'dt',dt,'ad_max',ad_max
+        #print 'dt',dt,'ad_max',ad_max
         #####End adaptive time stepping
         ##################################################
         

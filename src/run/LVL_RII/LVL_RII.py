@@ -10,11 +10,15 @@
 from fenics import *
 from mshr import*
 import numpy, scipy, sys, math
+import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
 sys.path.insert(0, '../../modules/')
 from mupopp import *
 
 #####################################################
+parameters["std_out_all_processes"]=False
+#set_log_level(30) #Critical info only
+####################################
 def boundary_value(n):
     if n < 10:
         return float(n)/10.0
@@ -34,6 +38,18 @@ class BoundarySource(Expression):
         values[1] = g*n[1]
     def value_shape(self):
         return (2,)
+#Define a function h such that c(x,0)=f
+class BoundaryConcentration(Expression):
+    def __init__(self, mesh,element):
+        self.mesh = mesh
+        self.element=element
+    def eval_cell(self, values, x, ufl_cell):
+        f = 0.5+0.5*(1.0-tanh(0.0/0.2))*sin(2.0*x[0]*3.14)
+        values[0] = f
+        
+    def value_shape(self):
+        return (1,)
+
 xmin=0.0
 xmax=4.0
 ymin=0.0
@@ -66,7 +82,7 @@ class PeriodicBoundary(SubDomain):
 pbc = PeriodicBoundary()            
 
 domain=Rectangle(Point(xmin,ymin),Point(xmax,ymax))
-mesh=generate_mesh(domain,30)
+mesh=generate_mesh(domain,60)
 
 # Output files for quick visualisation
 output_dir     = "output/"
@@ -90,7 +106,7 @@ bc2 = DirichletBC(W.sub(0), Constant((0.0,0.001)), top)
 bc=[bc1,bc2]
 
 ##############Create an object
-darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e6,cfl=0.1)
+darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e2,cfl=0.1)
 
 ########################
 ## Solve for Darcy velocity
@@ -133,18 +149,21 @@ c01=temp
 
 
 # Parameters
-T = 5.0
-darcy.dt = 0.010
+T = 100.0
+darcy.dt = 0.10
 t = darcy.dt
 
 # Set up boundary conditions for component 0
-bc1 = DirichletBC(Q1.sub(0), Constant(0.0),top)
-bc2 = DirichletBC(Q1.sub(0), Constant(0.5),bottom)
+c0_bottom = BoundaryConcentration(mesh,element=Qc)
+bc2 = DirichletBC(Q1.sub(0), c0_bottom,bottom)
+#bc1 = DirichletBC(Q1.sub(0), Constant(0.0),top)
+#bc2 = DirichletBC(Q1.sub(0), Constant(0.5),bottom)
 # Set up boundary conditions for component 1
-bc3 = DirichletBC(Q1.sub(1), Constant(0.9),top)
+#bc3 = DirichletBC(Q1.sub(1), Constant(0.9),top)
 bc4 = DirichletBC(Q1.sub(1), Constant(0.9),bottom)
 
-bc_c=[bc1,bc2,bc3,bc4]
+#bc_c=[bc1,bc2,bc3,bc4]
+bc_c=[bc2,bc4]
 sol_c=Function(Q1)
 
 
@@ -168,11 +187,16 @@ while t - T < DOLFIN_EPS:
     # Move to next interval and adjust boundary condition
     dt_array.append(darcy.dt)
     time_array.append(t)
-    print 'time',t
-    print 'iteration',i
+    info("time t =%g\n" %t)
+    info("iteration =%g\n" %i)
+    #print 'iteration',i
     t += darcy.dt
     i += 1
 
 #Write dt and time into a file
 dt_time=np.array([time_array,dt_array])
 np.savetxt('dt_time.dat',dt_time)
+plt.loglog(time_array,dt_array,'or')
+plt.xlabel('time')
+plt.ylabel('dt')
+plt.show()

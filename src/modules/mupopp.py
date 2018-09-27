@@ -648,15 +648,23 @@ class DarcyAdvection():
 
         #####End adaptive time stepping
         # Galerkin variational problem
-        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-                + q*(c - c0)*dx + dt*f*q*self.phi*dx
+        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
+        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
         
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(velocity, velocity))
-        F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+        #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx
+        alpha_SUPG=self.Pe*vnorm*h/2.0
+        term1_SUPG=0.5*h*(np.arctanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
+        term_SUPG = term1_SUPG*dot(velocity, grad(v))*r*dx
+        a = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
+                + q*(c - c0)*dx  + term_SUPG
+        L =     dt*f*v*dx + dt*f*q*self.phi*dx
         
-        return lhs(F), rhs(F)
+        #return lhs(F), rhs(F)
+        return a, L
     def advection_diffusion_two_component(self,Q, c_prev, velocity,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for component one. The source term depends on the concentration

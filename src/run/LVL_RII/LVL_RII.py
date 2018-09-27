@@ -106,7 +106,7 @@ bc2 = DirichletBC(W.sub(0), Constant((0.0,0.001)), top)
 bc=[bc1,bc2]
 
 ##############Create an object
-darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e2,cfl=0.1)
+darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e4,cfl=0.1)
 
 ########################
 ## Solve for Darcy velocity
@@ -149,7 +149,7 @@ c01=temp
 
 
 # Parameters
-T = 100.0
+T = 5.0
 darcy.dt = 0.10
 t = darcy.dt
 

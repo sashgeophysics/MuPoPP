@@ -106,7 +106,7 @@ bc2 = DirichletBC(W.sub(0), Constant((0.0,0.001)), top)
 bc=[bc1,bc2]
 
 ##############Create an object
-darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e4,cfl=0.1)
+darcy=DarcyAdvection(Da=10.0,phi=0.01,Pe=1.0e6,cfl=0.1)
 
 ########################
 ## Solve for Darcy velocity
@@ -143,13 +143,13 @@ temp.interpolate(Expression("0.5+0.5*(1.0-tanh(x[1]/0.2))*sin(2.0*x[0]*3.14)",de
 c00=temp
 c00.rename("[CO3]","")
 initial_c0_out << c00
-temp.interpolate(Expression("0.9",degree=1))
+temp.interpolate(Expression("0.1",degree=1))
 c01=temp
 # Write the initial concentrations into files
 
 
 # Parameters
-T = 5.0
+T = 50.0
 darcy.dt = 0.10
 t = darcy.dt
 
@@ -160,7 +160,7 @@ bc2 = DirichletBC(Q1.sub(0), c0_bottom,bottom)
 #bc2 = DirichletBC(Q1.sub(0), Constant(0.5),bottom)
 # Set up boundary conditions for component 1
 #bc3 = DirichletBC(Q1.sub(1), Constant(0.9),top)
-bc4 = DirichletBC(Q1.sub(1), Constant(0.9),bottom)
+bc4 = DirichletBC(Q1.sub(1), Constant(0.1),bottom)
 
 #bc_c=[bc1,bc2,bc3,bc4]
 bc_c=[bc2,bc4]
@@ -199,4 +199,4 @@ np.savetxt('dt_time.dat',dt_time)
 plt.loglog(time_array,dt_array,'or')
 plt.xlabel('time')
 plt.ylabel('dt')
-plt.show()
+#plt.show()

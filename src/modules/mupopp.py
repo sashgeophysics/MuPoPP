@@ -656,12 +656,12 @@ class DarcyAdvection():
         vnorm = sqrt(dot(velocity, velocity))
         #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx
         alpha_SUPG=self.Pe*vnorm*h/2.0
-        term1_SUPG=0.5*h*(1.0/np.tanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
+        term1_SUPG=0.5*h*(np.arctanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
         term_SUPG = term1_SUPG*dot(velocity, grad(v))*r*dx
         a = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
                 + q*(c - c0)*dx  + term_SUPG
-        L =     -dt*f*v*dx - dt*f*q*self.phi*dx
+        L =     - dt*f*v*dx - dt*f*q*self.phi*dx # sign changes
         
         #return lhs(F), rhs(F)
         return a, L
@@ -728,25 +728,51 @@ class DarcyAdvection():
         coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
         term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         #Sendur 2018
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        tau_SUPG1 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
         #Codina 1997 eq. 114
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        term_SUPG = tau_SUPG*dot(velocity, grad(v))*r*dx
+        tau_SUPG2 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        term_SUPG = tau_SUPG2*dot(velocity, grad(v))*r*dx
+
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-                + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
-                + q*(c - c0)*dx  + term_SUPG
-        F +=     -dt*f*v*dx - dt*f*q*self.phi*dx 
-        
-        # Galerkin variational problem
-        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
-        
-        # Add SUPG stabilisation terms
-        #vnorm = sqrt(dot(velocity, velocity))
-        #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
+                + q*(c - c0)*dx + dt*f*q*self.phi*dx
+        F += term_SUPG
         
         return lhs(F), rhs(F)
+
+
+########################################################
+## A class for LVL_RII_benchmark
+#######################################################
+class DarcyAdvection_benchmark():
+    """
+    This class solves for mumerical solution of LVL_RII_benchmark
+    
+    """  
+    def __init__(self,Pe=100,Da=10.0):
+        self.Pe=Pe
+        self.Da=Da
+    def LVL_RII_benchmark(self,Q,mesh):
+        """ This function is built fot LVL_RII_benchmark. Equations are 
+	from CH6, Howard Elman. The source term is zero."""
+
+	# Define variational problem
+	v = Expression(("0.0","1.0"),degree=2)
+	h = CellDiameter(mesh)
+	#v0 = Function(Q)
+	#v0.interpolate(Expression(("0.0","1.0"),degree=2))
+	#v = v0
+	f = Expression(("0.0"),degree=1)
+
+	c = TrialFunction(Q)
+	q = TestFunction(Q)
+
+	#a = dot(grad(c), grad(q))/self.Pe*dx + dot(v, grad(c))*q*dx
+	#L = f*q*dx
+	F = dot(grad(c), grad(q))/self.Pe*dx + dot(v, grad(c))*q*dx - f*q*dx
+        
+	return lhs(F), rhs(F)
+	#return a, L
         
     
 ####################################################################

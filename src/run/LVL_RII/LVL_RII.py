@@ -13,7 +13,10 @@ import numpy, scipy, sys, math
 import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
 sys.path.insert(0, '../../modules/')
-from mupopp import *
+#from mupopp import *
+
+# muppop_Joe contains the newest equations
+from mupopp_Joe import *
 
 #####################################################
 parameters["std_out_all_processes"]=False
@@ -34,8 +37,18 @@ out_freq0 = 10
 # Parameters for mesh
 mesh_density = 60
 
+# Output files for quick visualisation
+output_dir     = "output/"
+extension      = "pvd"   # "xdmf" or "pvd"
+
+velocity_out   = File(output_dir + "velocity." + extension, "compressed")
+pressure_out   = File(output_dir + "pressure." + extension, "compressed")
+c0_out         = File(output_dir + "concentration0." + extension, "compressed")
+c1_out         = File(output_dir + "concentration1." + extension, "compressed")
+initial_c0_out = File(output_dir + "initial_c0." + extension, "compressed")
+
 # Output parameters
-def output_write(mesh_density,Da,phi,Pe,cfl,fname="output/parameters.out"):
+def output_write(mesh_density,Da,phi,Pe,cfl,fname="output/a_parameters.out"):
     """This function saves the output of iterations"""
     file=open(fname,"a")
     file.write("####################################")
@@ -49,16 +62,6 @@ def output_write(mesh_density,Da,phi,Pe,cfl,fname="output/parameters.out"):
     file.close
 
 output_write(mesh_density,Da0,phi0,Pe0,cfl0)
-
-# Output files for quick visualisation
-output_dir     = "output/"
-extension      = "pvd"   # "xdmf" or "pvd"
-
-velocity_out   = File(output_dir + "velocity." + extension, "compressed")
-pressure_out   = File(output_dir + "pressure." + extension, "compressed")
-c0_out         = File(output_dir + "concentration0." + extension, "compressed")
-c1_out         = File(output_dir + "concentration1." + extension, "compressed")
-initial_c0_out = File(output_dir + "initial_c0." + extension, "compressed")
     
 # Define function G such that u \cdot n = g
 class BoundarySource(Expression):
@@ -239,3 +242,33 @@ plt.loglog(time_array,dt_array,'or')
 plt.xlabel('time')
 plt.ylabel('dt')
 #plt.show()
+
+
+# Fast sovle with fixed dt
+"""
+# Parameters for iteration
+T = T0
+dt = dt0
+t = dt
+
+i = 1
+out_freq = out_freq0
+
+while t - T < DOLFIN_EPS:
+    # Update the concentration of component 0
+    ac,Lc = darcy.advection_diffusion_two_component_nonadaptive(QM,c0,vel,dt,mesh)
+    solve(ac==Lc,sol_c,bc_c)
+    c0 = sol_c
+    c00,c01 = sol_c.split()
+    if i % out_freq == 0:
+        c00.rename("[CO3]","")
+        c0_out << c00
+        c01.rename("[Fe]","")
+        c1_out << c01
+    # Move to next interval and adjust boundary condition
+    info("time t =%g\n" %t)
+    info("iteration =%g\n" %i)
+    #print 'iteration',i
+    t += dt
+    i += 1
+"""

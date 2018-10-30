@@ -43,7 +43,7 @@ class DarcyAdvection():
         f=Expression("1.0",degree=1)
         # Define the variational form
 
-        a = (inner(u,v)-K*div(v)*p+div(u)*q)*dx
+        a = (inner(self.phi*u,v)-K*div(v)*p+div(u)*q)*dx # self.phi*u
         L = K*f*inner(v,zhat)*dx
         
         return(a,L)

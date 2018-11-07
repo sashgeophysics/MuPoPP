@@ -245,7 +245,7 @@ time_array = []
 while t - T < DOLFIN_EPS:
 
     # Update the concentration of component 0
-    ac,Lc = darcy.advection_diffusion_two_component(QM,c0,vel,mesh)
+    ac,Lc = darcy.advection_diffusion_two_component_source_term(QM,c0,vel,mesh)
     solve(ac==Lc,sol_c)#,bc_c) # tranfer the DirichletBC into a source term
     c0 = sol_c
     #c0.assign(sol_c) # 'assign' is verified to be equal to '=' here

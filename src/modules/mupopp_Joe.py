@@ -198,6 +198,85 @@ class DarcyAdvection():
         
         return lhs(F), rhs(F)
 
+    def advection_diffusion_two_component_source_term(self,Q, c_prev, velocity,mesh):
+        """ This function builds the bilinear form for component advection
+        diffusion for component one. The source term depends on the concentration
+        of both components. Concentration of the other component should be
+        calculated outside this function after solving the bilinear form from
+        this step"""
+             
+        h = CellDiameter(mesh)
+
+        # TrialFunctions and TestFunctions
+        U = TrialFunction(Q)
+        (v, q) = TestFunctions(Q)
+
+        # u and c are the trial functions for the next time step
+        # u for comp 0 and c comp1 
+        u, c   = split(U)
+
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
+        u0 ,c0 = split(c_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + u)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	# the source term for c0
+	f1 = Expression('0.05*(1.0-tanh(x[1]/0.2))*(1.0+sin(2.0*x[0]*3.14))',degree=1)
+
+	##################################################
+        # Adaptive time-stepping added September 2018
+        # Right hand side of advection equation
+        # u.grad(c)-div(grad(c))/Pe+f
+
+        # Evaluate this term from the last time step
+        advect_term = dot(velocity, grad(u0)) - div(grad(u0))/self.Pe \
+		+ f/self.phi - f1/self.phi #1.f/self.phi 7.f1
+        # Create a DG function sapce to evaluate the values of this
+        DG = FunctionSpace(mesh, "DG", 0)
+        #Save it into a function 
+        advect_rhs=project(advect_term,DG)
+        # Now evaluate the maximum value of this term
+        ad_max=advect_rhs.vector().max()
+        #Compute dt for this time step such that
+        #dt*ad_max<=CFL
+        if np.abs(ad_max)>self.cfl:
+            self.dt=self.cfl/ad_max       
+        dt=self.dt
+        #print 'dt',dt,'ad_max',ad_max
+        #####End adaptive time stepping
+	##################################################
+        
+        # Galerkin variational problem
+        # Residual
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe\
+		+ f/self.phi - f1/self.phi) + c - c0 + dt*f/(1-self.phi) #2.f/self.phi 3.dt*f/(1-self.phi) 8.f1
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(velocity, velocity))
+        alpha_SUPG = self.Pe*vnorm*h/2.0
+
+        # Brookes and Hughes
+        coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        term1_SUPG = 0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        # Sendur 2018
+        tau_SUPG1 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        # Codina 1997 eq. 114
+        tau_SUPG2 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da/self.phi) #4.self.Da/self.phi
+
+        term_SUPG = tau_SUPG2*dot(velocity, grad(v))*r*dx
+
+        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*v*dx - dt*f1/self.phi*v*dx\ #9.f1
+                + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi)
+        F += term_SUPG
+        
+        return lhs(F), rhs(F)
+
 ########################################################
 ## A class for LVL_RII_benchmark
 #######################################################

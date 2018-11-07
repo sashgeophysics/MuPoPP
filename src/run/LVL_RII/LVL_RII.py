@@ -10,7 +10,7 @@
 from fenics import *
 from mshr import*
 import numpy, scipy, sys, math
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
 sys.path.insert(0, '../../modules/')
 #from mupopp import *
@@ -30,9 +30,9 @@ Pe0  = 1.0e6
 cfl0 = 0.1
 
 # Parameters for iteration
-T0 = 1000.0
-dt0 = 0.10
-out_freq0 = 10
+T0 = 100.0
+dt0 = 1.0e-4
+out_freq0 = 50
 
 # Parameters for mesh
 mesh_density = 60
@@ -46,6 +46,7 @@ pressure_out   = File(output_dir + "pressure." + extension, "compressed")
 c0_out         = File(output_dir + "concentration0." + extension, "compressed")
 c1_out         = File(output_dir + "concentration1." + extension, "compressed")
 initial_c0_out = File(output_dir + "initial_c0." + extension, "compressed")
+initial_c1_out = File(output_dir + "initial_c1." + extension, "compressed")
 
 # Output parameters
 def output_write(mesh_density,Da,phi,Pe,cfl,fname="output/a_parameters.out"):
@@ -88,6 +89,16 @@ class BoundaryConcentration(Expression):
     def value_shape(self):
         return (1,)
 
+#Define a function for initial conditions
+class InitialConcentration(Expression):
+    def __init__(self, element):
+        self.element=element
+    def eval(self, values, x): 
+        values[0] = 0.5+0.5*(1.0-tanh(x[1]/0.2))*sin(2.0*x[0]*3.14)	
+	values[1] = 0.1      
+    def value_shape(self):
+        return (2,)
+
 ############################
 ## Numerical solution
 ############################
@@ -124,6 +135,9 @@ class PeriodicBoundary(SubDomain):
 # Create periodic boundary condition
 pbc = PeriodicBoundary()            
 
+############################
+## Darcy velocity
+############################
 # Create FunctionSpaces
 # Velocity
 V = VectorElement("Lagrange", mesh.ufl_cell(), 2)
@@ -170,9 +184,12 @@ vtemp = Function(Vc)
 vtemp.interpolate(Expression(("0.0","0.001"),degree=2))
 vel = vtemp
 
+
+############################
+## Define initial conditions 
+############################
 # Create functions for initial conditions
 c0 = Function(QM)
-#c00,c01=c0.split()
 
 # Functions for components
 temp1 = Function(X)
@@ -183,9 +200,21 @@ temp2.interpolate(Expression("0.1",degree=1))
 c01 = temp2
 
 # Assign the components
-assign(c0.sub(0), c00)
+#assign(c0.sub(0), c00)
 assign(c0.sub(1), c01)
 
+#assign(c0, [c01,c01])
+
+#c_initial = InitialConcentration(element=MixedElement([Qc,Qc]))
+#c0.interpolate(c_initial)
+
+c0_initial,c1_initial=c0.split()
+initial_c0_out << c0_initial
+initial_c1_out << c1_initial
+
+############################
+## Define boundary conditions
+############################
 # Set up boundary conditions for component 0
 c0_bottom = BoundaryConcentration(mesh,element=Qc)
 bc1 = DirichletBC(QM.sub(0), Constant(0.0),top)
@@ -208,7 +237,6 @@ T = T0
 darcy.dt = dt0
 t = darcy.dt
 
-
 i = 1
 out_freq = out_freq0
 # Save the dt and time values in an array
@@ -218,8 +246,9 @@ while t - T < DOLFIN_EPS:
 
     # Update the concentration of component 0
     ac,Lc = darcy.advection_diffusion_two_component(QM,c0,vel,mesh)
-    solve(ac==Lc,sol_c,bc_c)
+    solve(ac==Lc,sol_c)#,bc_c) # tranfer the DirichletBC into a source term
     c0 = sol_c
+    #c0.assign(sol_c) # 'assign' is verified to be equal to '=' here
     c00,c01 = sol_c.split()
     if i % out_freq == 0:
         c00.rename("[CO3]","")
@@ -236,15 +265,15 @@ while t - T < DOLFIN_EPS:
     i += 1
 
 #Write dt and time into a file
-dt_time=np.array([time_array,dt_array])
-np.savetxt('dt_time.dat',dt_time)
-plt.loglog(time_array,dt_array,'or')
-plt.xlabel('time')
-plt.ylabel('dt')
+#dt_time=np.array([time_array,dt_array])
+#np.savetxt('dt_time.dat',dt_time)
+#plt.loglog(time_array,dt_array,'or')
+#plt.xlabel('time')
+#plt.ylabel('dt')
 #plt.show()
 
 
-# Fast sovle with fixed dt
+# Fast sovler with a fixed dt
 """
 # Parameters for iteration
 T = T0

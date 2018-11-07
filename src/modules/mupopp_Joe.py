@@ -271,8 +271,8 @@ class DarcyAdvection():
 
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f/self.phi*v*dx - dt*f1/self.phi*v*dx\ #9.f1
-                + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi)
+                + dt*f/self.phi*v*dx - dt*f1/self.phi*v*dx \
+                + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1
         F += term_SUPG
         
         return lhs(F), rhs(F)

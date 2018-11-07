@@ -24,7 +24,7 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 10.0
+Da0  = 1.0
 phi0 = 0.01
 Pe0  = 1.0e6
 cfl0 = 0.1
@@ -38,18 +38,18 @@ out_freq0 = 50
 mesh_density = 60
 
 # Output files for quick visualisation
-output_dir     = "output/"
+output_dir     = "Da1.0_Pe1.0e6_output/"
 extension      = "pvd"   # "xdmf" or "pvd"
 
 velocity_out   = File(output_dir + "velocity." + extension, "compressed")
 pressure_out   = File(output_dir + "pressure." + extension, "compressed")
-c0_out         = File(output_dir + "concentration0." + extension, "compressed")
-c1_out         = File(output_dir + "concentration1." + extension, "compressed")
+c0_out         = File(output_dir + "Da1.0_Pe1.0e6_concentration0." + extension, "compressed")
+c1_out         = File(output_dir + "Da1.0_Pe1.0e6_concentration1." + extension, "compressed")
 initial_c0_out = File(output_dir + "initial_c0." + extension, "compressed")
 initial_c1_out = File(output_dir + "initial_c1." + extension, "compressed")
 
 # Output parameters
-def output_write(mesh_density,Da,phi,Pe,cfl,fname="output/a_parameters.out"):
+def output_write(mesh_density,Da,phi,Pe,cfl,fname="Da1.0_Pe1.0e6_output/a_parameters.out"):
     """This function saves the output of iterations"""
     file=open(fname,"a")
     file.write("####################################")
@@ -271,33 +271,3 @@ np.savetxt('dt_time.dat',dt_time)
 #plt.xlabel('time')
 #plt.ylabel('dt')
 #plt.show()
-
-
-# Fast sovler with a fixed dt
-"""
-# Parameters for iteration
-T = T0
-dt = dt0
-t = dt
-
-i = 1
-out_freq = out_freq0
-
-while t - T < DOLFIN_EPS:
-    # Update the concentration of component 0
-    ac,Lc = darcy.advection_diffusion_two_component_nonadaptive(QM,c0,vel,dt,mesh)
-    solve(ac==Lc,sol_c,bc_c)
-    c0 = sol_c
-    c00,c01 = sol_c.split()
-    if i % out_freq == 0:
-        c00.rename("[CO3]","")
-        c0_out << c00
-        c01.rename("[Fe]","")
-        c1_out << c01
-    # Move to next interval and adjust boundary condition
-    info("time t =%g\n" %t)
-    info("iteration =%g\n" %i)
-    #print 'iteration',i
-    t += dt
-    i += 1
-"""

@@ -27,7 +27,7 @@ parameters["std_out_all_processes"]=False
 Da0  = 10.0
 phi0 = 0.01
 Pe0  = 1.0e6
-beta0= 0.005   # beta = beta0/phi
+alpha0= 0.005   # beta = alpha0/phi
 cfl0 = 0.1
 
 # Parameters for iteration
@@ -50,7 +50,7 @@ initial_c0_out = File(output_dir + "initial_c0." + extension, "compressed")
 initial_c1_out = File(output_dir + "initial_c1." + extension, "compressed")
 
 # Output parameters
-def output_write(mesh_density,Da,phi,Pe,beta,cfl,fname="output/a_parameters.out"):
+def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname="output/a_parameters.out"):
     """This function saves the output of iterations"""
     file=open(fname,"a")
     file.write("####################################")
@@ -59,12 +59,12 @@ def output_write(mesh_density,Da,phi,Pe,beta,cfl,fname="output/a_parameters.out"
     file.write("Da:  %g\n" %Da0)
     file.write("phi:  %g\n" %phi0)
     file.write("Pe:  %g\n" %Pe0)
-    file.write("beta:  %g\n" %beta0)
+    file.write("alpha:  %g\n" %alpha0)
     file.write("cfl:  %g\n" %cfl0)
     file.write("####################################")
     file.close
 
-output_write(mesh_density,Da0,phi0,Pe0,beta0,cfl0)
+output_write(mesh_density,Da0,phi0,Pe0,alpha0,cfl0)
     
 # Define function G such that u \cdot n = g
 class BoundarySource(Expression):
@@ -157,7 +157,7 @@ bc  = [bc1,bc2]
 ###########################
 ## Create an object
 ###########################
-darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,beta=beta0,cfl=cfl0)
+darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
 
 ###########################
 ## Solve for Darcy velocity

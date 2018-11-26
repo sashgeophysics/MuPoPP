@@ -23,12 +23,13 @@ class DarcyAdvection():
     
     """
     
-    def __init__(self,Pe=100,Da=10.0,phi=0.01,cfl=1.0e-2,dt=1.0e-2):
+    def __init__(self,Pe=100,Da=10.0,phi=0.01,beta=0.005,cfl=1.0e-2,dt=1.0e-2):
         """Initiates the class. Inherits nondimensional numbers
         from compaction, only need to add Pe"""
         self.Pe=Pe
         self.Da=Da
         self.phi=phi
+	self.beta=beta
         self.cfl=cfl
         self.dt=dt
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
@@ -226,7 +227,12 @@ class DarcyAdvection():
         f = self.Da*u0*c0
 
 	# the source term for c0
-	f1 = Expression('0.05*(1.0-tanh(x[1]/0.2))*(1.0+sin(2.0*x[0]*3.14))',degree=1)
+	f1 = Expression('(1.0-tanh(x[1]/0.01))*( (1.0+sin(1.0*x[0]*3.14)) \
+		+ (1.0+sin(2.0*x[0]*3.14)) + (1.0+sin(3.0*x[0]*3.14)) \
+		+ (1.0+sin(4.0*x[0]*3.14)) + (1.0+sin(5.0*x[0]*3.14)) \
+		+ (1.0+sin(6.0*x[0]*3.14)) + (1.0+sin(7.0*x[0]*3.14)) \
+		+ (1.0+sin(8.0*x[0]*3.14)) + (1.0+sin(9.0*x[0]*3.14)) \
+		+ (1.0+sin(10.0*x[0]*3.14)) )/20.0',degree=1)
 
 	##################################################
         # Adaptive time-stepping added September 2018
@@ -235,7 +241,7 @@ class DarcyAdvection():
 
         # Evaluate this term from the last time step
         advect_term = dot(velocity, grad(u0)) - div(grad(u0))/self.Pe \
-		+ f/self.phi - f1/self.phi #1.f/self.phi 7.f1
+		+ f/self.phi - self.beta/self.phi*f1 #1.f/self.phi 7.f1
         # Create a DG function sapce to evaluate the values of this
         DG = FunctionSpace(mesh, "DG", 0)
         #Save it into a function 
@@ -254,7 +260,8 @@ class DarcyAdvection():
         # Galerkin variational problem
         # Residual
         r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe\
-		+ f/self.phi - f1/self.phi) + c - c0 + dt*f/(1-self.phi) #2.f/self.phi 3.dt*f/(1-self.phi) 8.f1
+		+ f/self.phi - self.beta/self.phi*f1) \
+		+ c - c0 + dt*f/(1-self.phi) #2.f/self.phi 3.dt*f/(1-self.phi) 8.f1
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(velocity, velocity))
         alpha_SUPG = self.Pe*vnorm*h/2.0
@@ -271,7 +278,7 @@ class DarcyAdvection():
 
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
-                + dt*f/self.phi*v*dx - dt*f1/self.phi*v*dx \
+                + dt*f/self.phi*v*dx - self.beta/self.phi*f1*v*dx \
                 + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1
         F += term_SUPG
         

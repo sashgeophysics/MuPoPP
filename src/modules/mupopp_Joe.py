@@ -32,6 +32,7 @@ class DarcyAdvection():
 	self.alpha=alpha
         self.cfl=cfl
         self.dt=dt
+
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
         """            
         """
@@ -74,7 +75,8 @@ class DarcyAdvection():
         F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
         
         return lhs(F), rhs(F)
-    def advection_diffusion_two_component_nonadaptive(self,Q, c_prev, velocity, dt,mesh):
+
+    def advection_diffusion_two_component_nonadaptive(self,Q,c_prev,velocity,dt,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for componet one. The source term depends on the concentration
         of both components. Concentration of the other component should be
@@ -125,7 +127,7 @@ class DarcyAdvection():
         
         return lhs(F), rhs(F)
 
-    def advection_diffusion_two_component(self,Q, c_prev, velocity,mesh):
+    def advection_diffusion_two_component(self,Q,c_prev,velocity,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for component one. The source term depends on the concentration
         of both components. Concentration of the other component should be
@@ -199,7 +201,7 @@ class DarcyAdvection():
         
         return lhs(F), rhs(F)
 
-    def advection_diffusion_two_component_source_term(self,Q, c_prev, velocity,mesh):
+    def advection_diffusion_two_component_source_term(self,Q,c_prev,velocity,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for component one. The source term depends on the concentration
         of both components. Concentration of the other component should be
@@ -280,6 +282,67 @@ class DarcyAdvection():
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
                 + dt*f/self.phi*v*dx - self.alpha/self.phi*f1*v*dx \
                 + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1
+        F += term_SUPG
+        
+        return lhs(F), rhs(F)
+
+    def advection_diffusion_two_component_source_term_nonadaptive(self,Q,c_prev,velocity,dt,mesh):
+        """ This function builds the bilinear form for component advection
+        diffusion for componet one. The source term depends on the concentration
+        of both components. Concentration of the other component should be
+        calculated outside this function after solving the bilinear form from
+        this step"""
+             
+        h = CellDiameter(mesh)
+
+        # TrialFunctions and TestFunctions
+        U = TrialFunction(Q)
+        (v, q) = TestFunctions(Q)
+        # u and c are the trial functions for the next time step
+        # u for comp 0 and c comp1 
+        u, c   = split(U)
+
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
+        u0 ,c0 = split(c_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + u)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	# the source term for c0 f1=[0,1]
+	f1 = Expression('(1.0-tanh(x[1]/0.01))*( (1.0+sin(1.0*x[0]*3.14)) \
+		+ (1.0+sin(2.0*x[0]*3.14)) + (1.0+sin(3.0*x[0]*3.14)) \
+		+ (1.0+sin(4.0*x[0]*3.14)) + (1.0+sin(5.0*x[0]*3.14)) \
+		+ (1.0+sin(6.0*x[0]*3.14)) + (1.0+sin(7.0*x[0]*3.14)) \
+		+ (1.0+sin(8.0*x[0]*3.14)) + (1.0+sin(9.0*x[0]*3.14)) \
+		+ (1.0+sin(10.0*x[0]*3.14)) )/20.0',degree=1)
+
+        # Galerkin variational problem
+        # Residual
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe\
+		+ f/self.phi  - self.alpha/self.phi*f1) + c \
+		- c0 + dt*f/(1-self.phi) #2.f/self.phi 3.dt*f/(1-self.phi) 8.f1
+	# Add SUPG stabilisation terms
+        vnorm = sqrt(dot(velocity, velocity))
+        alpha_SUPG = self.Pe*vnorm*h/2.0
+
+        # Brookes and Hughes
+        coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        term1_SUPG = 0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        # Sendur 2018
+        tau_SUPG1 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        # Codina 1997 eq. 114
+        tau_SUPG2 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da/self.phi) #4.self.Da/self.phi
+
+        term_SUPG = tau_SUPG2*dot(velocity, grad(v))*r*dx
+
+	F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+                + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*v*dx  - self.alpha/self.phi*dt*f1*v*dx \
+                + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx  #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1 
         F += term_SUPG
         
         return lhs(F), rhs(F)

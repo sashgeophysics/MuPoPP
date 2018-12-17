@@ -41,18 +41,19 @@ out_freq0 = 50
 mesh_density = 60
 
 # Output files for quick visualisation
-output_dir     = "LVL_da1_pe2_c0.01_beta1_output/"
+file_name      = "LVL_da1_pe1e2_c0.01_beta1"
+output_dir     = file_name + "_output/"
 extension      = "pvd"   # "xdmf" or "pvd"
 
-velocity_out   = File(output_dir + "LVL_da1_pe2_c0.01_beta1_velocity." + extension, "compressed")
-pressure_out   = File(output_dir + "LVL_da1_pe2_c0.01_beta1_pressure." + extension, "compressed")
-c0_out         = File(output_dir + "LVL_da1_pe2_c0.01_beta1_concentration0." + extension, "compressed")
-c1_out         = File(output_dir + "LVL_da1_pe2_c0.01_beta1_concentration1." + extension, "compressed")
-initial_c0_out = File(output_dir + "LVL_da1_pe2_c0.01_beta1_initial_c0." + extension, "compressed")
-initial_c1_out = File(output_dir + "LVL_da1_pe2_c0.01_beta1_initial_c1." + extension, "compressed")
+velocity_out   = File(output_dir + file_name + "_velocity." + extension, "compressed")
+pressure_out   = File(output_dir + file_name + "_pressure." + extension, "compressed")
+c0_out         = File(output_dir + file_name + "_concentration0." + extension, "compressed")
+c1_out         = File(output_dir + file_name + "_concentration1." + extension, "compressed")
+initial_c0_out = File(output_dir + file_name + "_initial_c0." + extension, "compressed")
+initial_c1_out = File(output_dir + file_name + "_initial_c1." + extension, "compressed")
 
 # Output parameters
-def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname="LVL_da1_pe2_c0.01_beta1_output/a_parameters.out"):
+def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname= output_dir + "/a_parameters.out"):
     """This function saves the output of iterations"""
     file=open(fname,"a")
     file.write("####################################")

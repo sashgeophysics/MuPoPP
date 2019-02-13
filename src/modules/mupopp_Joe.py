@@ -347,6 +347,41 @@ class DarcyAdvection():
         
         return lhs(F), rhs(F)
 
+    def darcy_advection_rho_posi_random(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
+        """            
+        """
+	h = CellDiameter(mesh)
+
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc) = TestFunctions(W)
+        u, p, uc, cc   = split(U)
+        
+        zhat=zh
+
+        # Define the variational form
+        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*(1.0+uc)*inner(v,zhat)*dx
+
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        u,p,u0 ,c0 = split(sol_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx 
+        #F += term_SUPG
+        
+        return lhs(F), rhs(F)
+
+
 ########################################################
 ## A class for LVL_RII_benchmark
 #######################################################

@@ -25,7 +25,7 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 1.0
+Da0  = 25.0
 Pe0  = 1.0e2
 alpha0= 0.01   # beta = alpha0/phi
 c01_temp=Expression("0.01",degree=1) #Fe
@@ -41,6 +41,7 @@ out_freq0 = 1
 mesh_density = 60
 
 # Output files for quick visualisation
+file_name      = "2.da30_pe1e2_c0.01_b1_rho"
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"

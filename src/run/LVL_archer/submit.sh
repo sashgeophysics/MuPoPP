@@ -1,9 +1,9 @@
 #!/bin/bash --login
 #
-#PBS -l select=1
-#PBS -o sphere.out
-#PBS -e sphere.error
-#PBS -l walltime=0:40:00
+#PBS -l select=2
+#PBS -o LVL.out
+#PBS -e LVL.error
+#PBS -l walltime=0:10:00
 #PBS -m be
 #PBS -M saswata.hier-majumder@rhul.ac.uk
 #PBS -A n03-rh
@@ -22,5 +22,5 @@ cd $PBS_O_WORKDIR
 export INSTANT_SYSTEM_CALL_METHOD=OS_SYSTEM
 
 # Directs the application to be run on 24 compute node cores
-aprun -n 24 python sphere.py sphere.cfg
+aprun -n 48 python LVL_RII.py
 

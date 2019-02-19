@@ -793,8 +793,26 @@ class DarcyAdvection():
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx 
-        #F += term_SUPG
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
+            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(u, u))
+        
+
+        #alpha_SUPG=self.Pe*vnorm*h/2.0
+        #Brookes and Hughes
+        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        #Sendur 2018
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #Codina 1997 eq. 114
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG
         
         return lhs(F), rhs(F)
     

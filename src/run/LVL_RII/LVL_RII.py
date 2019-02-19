@@ -25,8 +25,8 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 25.0
-Pe0  = 1.0e2
+Da0  = 0.5
+Pe0  = 1.0e4
 alpha0= 0.01   # beta = alpha0/phi
 c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1

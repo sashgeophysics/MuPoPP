@@ -16,8 +16,6 @@ import numpy, scipy, sys, math
 sys.path.insert(0, '../../modules/')
 from mupopp import *
 
-# muppop_Joe contains the newest equations
-#from mupopp_Joe import *
 
 #####################################################
 parameters["std_out_all_processes"]=False
@@ -25,13 +23,14 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 0.5
-Pe0  = 1.0e4
-alpha0= 0.01   # beta = alpha0/phi
+Da0  = 20.0
+Pe0  = 5.0e2
+alpha0= 0.1   # beta = alpha0/phi
+Fe=0.01
 c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1
 phi0 = 0.01
-
+beta=alpha0/phi0
 # Parameters for iteration
 T0 = 10
 dt0 = 1.0e-1
@@ -41,7 +40,8 @@ out_freq0 = 1
 mesh_density = 60
 
 # Output files for quick visualisation
-file_name      = "2.da30_pe1e2_c0.01_b1_rho"
+
+file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -120,7 +120,18 @@ ymax = 1.0
 domain = Rectangle(Point(xmin,ymin),Point(xmax,ymax))
 mesh   = generate_mesh(domain,mesh_density)
 #mesh = RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), 100, 50)
-    
+#####################
+
+# Mark facets
+## Define subdomain for flux calculation
+class Plane(SubDomain):
+  def inside(self, x, on_boundary):
+    return x[1] > ymax - DOLFIN_EPS
+facets = FacetFunction("size_t", mesh)
+Plane().mark(facets, 1)
+ds = Measure("ds")[facets]
+n = FacetNormal(mesh)
+####################
 # Define essential boundary
 def top_bottom(x):
     return x[1] < DOLFIN_EPS or x[1] > ymax - DOLFIN_EPS
@@ -189,7 +200,8 @@ sol = Function(W)
 T = T0
 dt = dt0
 t = dt
-
+flux=np.array([])
+time_array=np.array([])
 i = 1
 out_freq = out_freq0
 S=SourceTerm(mesh,element=Qc)
@@ -210,9 +222,16 @@ while t - T < DOLFIN_EPS:
         c0_out << c00
         c01.rename("[Fe]","")
         c1_out << c01
+        ## Calculate flux
+        flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
+        flux= np.append(flux,flux1)
+        time_array=np.append(time_array,t)
+        #print "flux 1: ", flux_1
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
+flux_file=output_dir + file_name + "_flux.csv"
+np.savetxt(flux_file,(time_array,flux),delimiter=',')

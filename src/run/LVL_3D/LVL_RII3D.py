@@ -16,6 +16,8 @@ import numpy, scipy, sys, math
 sys.path.insert(0, '../../modules/')
 from mupopp import *
 
+# muppop_Joe contains the newest equations
+#from mupopp_Joe import *
 
 #####################################################
 parameters["std_out_all_processes"]=False
@@ -23,9 +25,9 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 20.0
-Pe0  = 5.0e2
-alpha0= 0.1   # beta = alpha0/phi
+Da0  = 10.0
+Pe0  = 1.0e2
+alpha0= 0.01   # beta = alpha0/phi
 Fe=0.01
 c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1
@@ -37,11 +39,10 @@ dt0 = 1.0e-1
 out_freq0 = 1
 
 # Parameters for mesh
-mesh_density = 60
+mesh_density = 30
 
 # Output files for quick visualisation
-
-file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
+file_name      = "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -70,8 +71,9 @@ def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname= output_dir + "/a_parame
 
 output_write(mesh_density,Da0,phi0,Pe0,alpha0,cfl0)
 
+###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;
 #Define function for source term in Governing equations
-class SourceTerm(Expression):
+class SourceTerm_2D(Expression):
     """ Creates an expression for the source term
     in the advection reaction equations.
     The source term consists of a series of
@@ -90,8 +92,28 @@ class SourceTerm(Expression):
     def value_shape(self):
         return (1,)
     
+class SourceTerm(Expression):
+    """ Creates an expression for the source term
+    in the advection reaction equations.
+    The source term consists of a series of
+    sine waves.
+    """
+    def __init__(self, mesh,element):
+        self.mesh = mesh
+        self.element=element
+    def eval(self, values, x):
+        g1=x[0]*x[1]*0.0
+        for ii in range(0,20):
+            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
+            
+        g = (1.0-tanh(x[2]/0.01))*g1
+        values[0] = g
+    def value_shape(self):
+        return (1,)
+
+###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;    
 # Define function for BC
-class BoundarySource(Expression):
+class BoundarySource_2D(Expression):
     def __init__(self, mesh,element):
         self.mesh = mesh
         self.element=element
@@ -108,53 +130,72 @@ class BoundarySource(Expression):
         return (2,)
 
 
+class BoundarySource(Expression):
+    def __init__(self, mesh,element):
+        self.mesh = mesh
+        self.element=element
+    def eval_cell(self, values, x, ufl_cell):
+        cell = Cell(self.mesh, ufl_cell.index)
+        n = cell.normal(ufl_cell.local_facet)
+        g1=x[0]*x[1]*0.0
+        for ii in range(0,20):
+            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
+        g = -0.1*g1
+        values[0] = g*n[0]
+        values[1] = g*n[1]
+        values[2] = g*n[2]
+    def value_shape(self):
+        return (3,)
+
+
 ############################
 ## Numerical solution
 ############################
-
+###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;
 # Define the mesh
 xmin = 0.0
 xmax = 4.0
 ymin = 0.0
-ymax = 1.0
-domain = Rectangle(Point(xmin,ymin),Point(xmax,ymax))
+ymax = 4.0
+zmin = 0.0
+zmax = 1.0
+domain = Box(Point(xmin,ymin,zmin),Point(xmax,ymax,zmax))
+#Rectangle(Point(xmin,ymin),Point(xmax,ymax))
 mesh   = generate_mesh(domain,mesh_density)
 #mesh = RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), 100, 50)
-#####################
-
-# Mark facets
-## Define subdomain for flux calculation
-class Plane(SubDomain):
-  def inside(self, x, on_boundary):
-    return x[1] > ymax - DOLFIN_EPS
-facets = FacetFunction("size_t", mesh)
-Plane().mark(facets, 1)
-ds = Measure("ds")[facets]
-n = FacetNormal(mesh)
-####################
+    
 # Define essential boundary
 def top_bottom(x):
-    return x[1] < DOLFIN_EPS or x[1] > ymax - DOLFIN_EPS
+    return x[2] < DOLFIN_EPS or x[2] > zmax - DOLFIN_EPS
 def bottom(x):
-    return x[1] < DOLFIN_EPS
+    return x[2] < DOLFIN_EPS
 def top(x):
-    return x[1] > ymax - DOLFIN_EPS
+    return x[2] > zmax - DOLFIN_EPS
 
 # Sub domain for Periodic boundary condition
 class PeriodicBoundary(SubDomain):
     # Bottom boundary is "target domain" G
     def inside(self, x, on_boundary):
-        return bool(near(x[0], xmin) and on_boundary)   
+        #return bool(near(x[0], xmin) or near(x[1], ymin) and on_boundary)
+        return bool((near(x[0], xmin) or near(x[1], ymin)) and (not ((near(x[0], xmax) and near(x[1], ymin)) or (near(x[0], xmin) and near(x[1], ymax)))) and on_boundary)
     # Map right boundary (H) to left boundary (G)
+    # and front boundary to the back boundary
     def map(self, x, y):
         if near(x[0], xmax):
             y[0] = x[0] - xmax
-            y[1] = x[1]            
+            y[1] = x[1]
+            y[2] = x[2]  
+        elif near(x[1], ymax):
+            y[0] = x[0] 
+            y[1] = x[1]-ymax
+            y[2] = x[2]  
         else:
             y[0] = -1000
             y[1] = -1000
+            y[2] = -1000       
 # Create periodic boundary condition
 pbc = PeriodicBoundary()            
+###;;;;;;;;;;;;;;;; 2D>3D change area end;;;;;;;;;;;;;;;;;;;;;
 
 ############################
 ## Darcy velocity
@@ -200,15 +241,14 @@ sol = Function(W)
 T = T0
 dt = dt0
 t = dt
-flux=np.array([])
-time_array=np.array([])
+
 i = 1
 out_freq = out_freq0
 S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.darcy_advection_rho_posi_random(W,mesh,sol_0,dt,f1=S )
+    a,L = darcy.darcy_advection_rho_posi_random(W,mesh,sol_0,dt,f1=S,zh=Constant((0.0,0.0,1.0)) )
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()
@@ -222,16 +262,9 @@ while t - T < DOLFIN_EPS:
         c0_out << c00
         c01.rename("[Fe]","")
         c1_out << c01
-        ## Calculate flux
-        flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
-        flux= np.append(flux,flux1)
-        time_array=np.append(time_array,t)
-        #print "flux 1: ", flux_1
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
-flux_file=output_dir + file_name + "_flux.csv"
-np.savetxt(flux_file,(time_array,flux),delimiter=',')

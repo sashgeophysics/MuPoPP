@@ -9,7 +9,7 @@ module functions. The multiphase physical properties are calculated by the
 module mumap_fwd. See details for these calculations in the docs for mumap_fwd.
 
 Copyright Saswata Hier-Majumder, January 2018
-
+Modified by Joe Sun, February 2019
 Works with Dolfin 2017.1.0
 Python 2.7
 """
@@ -564,7 +564,7 @@ class DarcyAdvection():
     
     """
     
-    def __init__(self,Pe=100,Da=10.0,phi=0.01,cfl=1.0e-2,dt=1.0e-2):
+    def __init__(self,Pe=100,Da=10.0,phi=0.01,alpha=0.005,cfl=1.0e-2,dt=1.0e-2):
         """Initiates the class. Inherits nondimensional numbers
         from compaction, only need to add Pe"""
         self.Pe=Pe
@@ -572,6 +572,7 @@ class DarcyAdvection():
         self.phi=phi
         self.cfl=cfl
         self.dt=dt
+        self.alpha=alpha
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
         """            
         """
@@ -656,12 +657,12 @@ class DarcyAdvection():
         vnorm = sqrt(dot(velocity, velocity))
         #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx
         alpha_SUPG=self.Pe*vnorm*h/2.0
-        term1_SUPG=0.5*h*(np.arctanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
+        term1_SUPG=0.5*h*(1.0/np.tanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
         term_SUPG = term1_SUPG*dot(velocity, grad(v))*r*dx
         a = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
                 + q*(c - c0)*dx  + term_SUPG
-        L =     - dt*f*v*dx - dt*f*q*self.phi*dx # sign changes
+        L =     -dt*f*v*dx - dt*f*q*self.phi*dx
         
         #return lhs(F), rhs(F)
         return a, L
@@ -672,7 +673,8 @@ class DarcyAdvection():
         calculated outside this function after solving the bilinear form from
         this step"""
         
-        f  = Expression("0.0",degree=1)        
+        f1  = Expression("0.005*(1.0-tanh(x[1]/0.2))*sin(2.0*x[0]*3.14)",degree=1)
+        f2  = Expression("0.001",degree=1)
         h = CellDiameter(mesh)
         # Parameters
         U = TrialFunction(Q)
@@ -691,6 +693,13 @@ class DarcyAdvection():
 
         # First order reaction term
         f = self.Da*u0*c0
+        # the source term for c0 f1=[0,1]
+	f1 = Expression('(1.0-tanh(x[1]/0.01))*( (1.0+sin(1.0*x[0]*3.14)) \
+		+ (1.0+sin(2.0*x[0]*3.14)) + (1.0+sin(3.0*x[0]*3.14)) \
+		+ (1.0+sin(4.0*x[0]*3.14)) + (1.0+sin(5.0*x[0]*3.14)) \
+		+ (1.0+sin(6.0*x[0]*3.14)) + (1.0+sin(7.0*x[0]*3.14)) \
+		+ (1.0+sin(8.0*x[0]*3.14)) + (1.0+sin(9.0*x[0]*3.14)) \
+		+ (1.0+sin(10.0*x[0]*3.14)) )/20.0',degree=1)
         ###############################################
         # Adaptive time-stepping added September 2018
         # Right hand side of advection equation
@@ -705,20 +714,21 @@ class DarcyAdvection():
         ad_max=advect_rhs.vector().max()
         #Compute dt for this time step such that
         #dt*ad_max<=CFL
-        if np.abs(ad_max)>self.cfl:
-            self.dt=self.cfl/ad_max
-        
+        #if np.abs(ad_max)>self.cfl:
+        #    self.dt=self.cfl/ad_max      
         dt=self.dt
-        #print 'dt',dt,'ad_max',ad_max
         #####End adaptive time stepping
         ##################################################
         
         # Galerkin variational problem
         #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
+        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+(dt*f*v/self.phi)*dx\
+        #        + q*(c - c0)*dx + dt*f*q*dx
         # Residual
-        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)+c-c0+dt*f
+        #r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+self.Da*u0*c0)\
+        #    +c-c0+dt*self.Da*u0*c0/self.phi
+        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
+            +c-c0+dt*f/(1.0-self.phi)
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(velocity, velocity))
         #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx
@@ -728,52 +738,83 @@ class DarcyAdvection():
         coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
         term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         #Sendur 2018
-        tau_SUPG1 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
         #Codina 1997 eq. 114
-        tau_SUPG2 = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        term_SUPG = tau_SUPG2*dot(velocity, grad(v))*r*dx
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        term_SUPG = tau_SUPG*dot(velocity, grad(v))*r*dx
+        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
+        #        + q*(c - c0)*dx  + term_SUPG
+        #F +=    f1*v*dx+f2*q*dx -(dt*self.Da*u0*c0*v/self.phi)*dx - dt*self.Da*u0*c0*q*dx 
+        
+        # Galerkin variational problem
+        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
+        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
+        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
+        
+        # Add SUPG stabilisation terms
+        #vnorm = sqrt(dot(velocity, velocity))
+        #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx \
+                                + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
+                                + dt*f/self.phi*v*dx  - self.alpha/self.phi*dt*f1*v*dx\
+                                + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx
+        #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1 
+        F += term_SUPG
+        return lhs(F), rhs(F)
+    
+    def darcy_advection_rho_posi_random(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
+        """            
+        """
+	h = CellDiameter(mesh)
 
-        F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-                + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-                + q*(c - c0)*dx + dt*f*q*self.phi*dx
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc) = TestFunctions(W)
+        u, p, uc, cc   = split(U)
+        
+        zhat=zh
+
+        # Define the variational form
+        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*(1.0+uc)*inner(v,zhat)*dx
+
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        u,p,u0 ,c0 = split(sol_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
+            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(u, u))
+        
+
+        #alpha_SUPG=self.Pe*vnorm*h/2.0
+        #Brookes and Hughes
+        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        #Sendur 2018
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #Codina 1997 eq. 114
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG
         
         return lhs(F), rhs(F)
-
-
-########################################################
-## A class for LVL_RII_benchmark
-#######################################################
-class DarcyAdvection_benchmark():
-    """
-    This class solves for mumerical solution of LVL_RII_benchmark
-    
-    """  
-    def __init__(self,Pe=100,Da=10.0):
-        self.Pe=Pe
-        self.Da=Da
-    def LVL_RII_benchmark(self,Q,mesh):
-        """ This function is built fot LVL_RII_benchmark. Equations are 
-	from CH6, Howard Elman. The source term is zero."""
-
-	# Define variational problem
-	v = Expression(("0.0","1.0"),degree=2)
-	h = CellDiameter(mesh)
-	#v0 = Function(Q)
-	#v0.interpolate(Expression(("0.0","1.0"),degree=2))
-	#v = v0
-	f = Expression(("0.0"),degree=1)
-
-	c = TrialFunction(Q)
-	q = TestFunction(Q)
-
-	#a = dot(grad(c), grad(q))/self.Pe*dx + dot(v, grad(c))*q*dx
-	#L = f*q*dx
-	F = dot(grad(c), grad(q))/self.Pe*dx + dot(v, grad(c))*q*dx - f*q*dx
-        
-	return lhs(F), rhs(F)
-	#return a, L
-        
     
 ####################################################################
 ### Reaction Infiltration instability without matrix deformation

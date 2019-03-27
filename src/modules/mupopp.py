@@ -765,8 +765,8 @@ class DarcyAdvection():
         return lhs(F), rhs(F)
     
     def darcy_advection_rho_posi_random(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
-        """            
-        """
+        """ 
+	"""
 	h = CellDiameter(mesh)
 
 	# TrialFunctions and TestFunctions
@@ -815,7 +815,59 @@ class DarcyAdvection():
         F += term_SUPG
         
         return lhs(F), rhs(F)
-    
+
+    def stokes(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
+        """ This function replaces the Darcy equation with the Stokes equation for use with real meshes          
+        with grains removed """
+	h = CellDiameter(mesh)
+
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc) = TestFunctions(W)
+        u, p, uc, cc   = split(U)
+        
+        zhat=zh
+
+        # Define the variational form
+        # Darcy: F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*(1.0+uc)*inner(v,zhat)*dx
+	F = (inner(grad(u),grad(v)))*dx - p*div(v)*dx + (div(u)*q)*dx
+
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        u,p,u0 ,c0 = split(sol_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
+            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(u, u))
+        
+
+        #alpha_SUPG=self.Pe*vnorm*h/2.0
+        #Brookes and Hughes
+        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        #Sendur 2018
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #Codina 1997 eq. 114
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG
+        
+        return lhs(F), rhs(F)
 ####################################################################
 ### Reaction Infiltration instability without matrix deformation
 ####################################################################

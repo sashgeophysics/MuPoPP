@@ -817,8 +817,10 @@ class DarcyAdvection():
         return lhs(F), rhs(F)
 
     def stokes(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
-        """ This function replaces the Darcy equation with the Stokes equation for use with real meshes          
-        with grains removed """
+        """ This function substitutes in stokes flow instead of darcy flow
+            for use in pore space flow modelling where the solid phase has been
+            removed, making a phi value redundant
+	"""    
 	h = CellDiameter(mesh)
 
 	# TrialFunctions and TestFunctions
@@ -829,8 +831,7 @@ class DarcyAdvection():
         zhat=zh
 
         # Define the variational form
-        # Darcy: F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*(1.0+uc)*inner(v,zhat)*dx
-	F = (inner(grad(u),grad(v)))*dx - p*div(v)*dx + (div(u)*q)*dx
+        F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
@@ -860,14 +861,15 @@ class DarcyAdvection():
         #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
         #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         #Sendur 2018
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
         #Codina 1997 eq. 114
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
         #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG
         
         return lhs(F), rhs(F)
+
 ####################################################################
 ### Reaction Infiltration instability without matrix deformation
 ####################################################################

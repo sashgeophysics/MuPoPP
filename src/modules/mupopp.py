@@ -831,7 +831,7 @@ class DarcyAdvection():
 
         # Define the variational form
 	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random 		function through the 1.0+uc term 
+        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function through the 1.0+uc term 
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
@@ -886,7 +886,7 @@ class DarcyAdvection():
 
         # Define the variational form
 	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random 		function through the 1.0+uc term 
+        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function through the 1.0+uc term 
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 

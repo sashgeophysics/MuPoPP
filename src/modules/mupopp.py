@@ -831,7 +831,7 @@ class DarcyAdvection():
 
         # Define the variational form
 	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function through the 1.0+uc term 
+        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function 		through the 1.0+uc term 
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
@@ -870,7 +870,7 @@ class DarcyAdvection():
         
         return lhs(F), rhs(F)
 
-    def stokes_no_alpha(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((1.0,0.0,0.0))):
+    def stokes_no_alpha(self,W,mesh,sol_prev,dt,K=0.1,zh=Constant((1.0,0.0,0.0))):
         """ This function substitutes in stokes flow instead of darcy flow
             for use in pore space flow modelling where the solid phase has been
             removed, making a phi value redundant            
@@ -886,7 +886,7 @@ class DarcyAdvection():
 
         # Define the variational form
 	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function through the 1.0+uc term 
+        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function    		through the 1.0+uc term 
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
@@ -901,12 +901,12 @@ class DarcyAdvection():
 
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f*vc*dx  - dt*f1*vc*dx \
+		+ dt*f*vc*dx\
                 + qc*(cc - c0)*dx + dt*f*qc*dx
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
-            - dt*f1 + cc-c0 + dt*f
+            + cc-c0 + dt*f
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(u, u))
         

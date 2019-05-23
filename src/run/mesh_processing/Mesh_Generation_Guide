@@ -1,0 +1,69 @@
+Mesh Generation 101 Guide
+
+1. PerGeos
+
+- Load in the CT scan images file
+- Segement the image using auto thresholding to identify grains and pore space
+- Remove the grain phases, leaving just 2 colours
+- Use the generate surface tool to produce a surface geometry file
+- Export the file as .stl
+
+2. Blender
+
+https://github.com/enGits/engrid/wiki/Unstructured-Grids-for-OpenFOAM-With-Blender-and-enGrid-1.2
+
+- File > Import > .stl (from PerGeos)
+- Top right, delete camera, light and cube to leave the surface file name
+- Change the drop down above this from 'all scenes' to 'visible layers'
+- Click the file in the scenes pane then press .(del) on num pad to zoom to it. (Or choose view > view selected in the bottom left)
+- At the bottom right change object mode to edit mode, the whole surface will change colour and highlight all of the elements
+- Check for intersections. Expand the pane using the small + top right. Scroll down the new pane to mesh analysis and choose intersect. Make sure you are in edit mode. Intersecting cells show up in red.
+
+Automatic Method:
+
+- Choose the vertex select button (bottom left) and select any vertex on the plane you want to define
+(Bottom left): select > side of active > F6 > alligned axis. Then change to the face select button (instead of vertex select) and the whole plane's faces will be orange
+- When a whole subdomain is selected press P > selection to produce a submesh which can be renamed (inflow etc...) in the visible layers pane
+- Repeat for inflow and outflow. Then rename the initial layer 'walls' as the remainder
+- Still in edit mode, shift click all of the submeshes in the layers pane so they are highlighted. Then choose file > export > enGrid
+
+Manual Method:
+
+- Choose the 'face select' button a but further to the right
+- Right clicking will select the element. You can shift click to choose multiple at once or alt click to choose more elements at a time
+- Pressing C gives a larger select area which can be changed by scrolling. Select cells using left click and drag, no need to shift click. Once done right click to remove the area selection. Shift clicking here will allow deslection of elements
+- When a whole subdomain is selected press P > selection to produce a submesh which can be renamed (inflow etc...) in the visible layers pane
+- Repeat for inflow and outflow. Then rename the initial layer 'walls' as the remainder
+- Still in edit mode, shift click all of the submeshes in the layers pane so they are highlighted. Then choose file > export > enGrid
+
+3. enGrid
+
+https://github.com/enGits/engrid/wiki/Complete-Mesh-for-a-damper-in-a-duct-%28starting-from-an-STL-geometry%29
+https://github.com/enGits/engrid/wiki/Unstructured-Grids-for-OpenFOAM-With-Blender-and-enGrid-1.2
+https://github.com/enGits/engrid/wiki/Volume-Meshing-from-Existing-Surface-Meshes
+
+- Launch enGrid using terminal by typing 'engrid' (important later)
+- import > Blender > .begc file from Blender
+- Press V to see all of the subdomain which were generated in Blender. Toggle them each in turn to check they display as expected
+- When you zoom in the outter surface should look a green colour with blue lines showing the elements. If it is yellow, use the 'change surface orientation' button at the top to make it green.
+	- Inside of the flow domain: yellow
+	- Outside of the flow domain: green
+- mesh > create/improve volume mesh (NETGEN) and change the iterations to 1 for the first go
+- This process takes some time, to check if its doing anything you can look at the terminal window you launched enGrid from. It gives detailed progress on the process
+- Once complete the screen won't look any different. Uncheck the 'enable surface elements' box on the right. - - Enable volume elements and only tetras and wedges. The image should turn pink/red
+view > coordinate axes
+- Use the axes to enter the centre point of each axis into the 'clipping' pane on the right, x at the top and z at the bottom
+- Set one of the x, y, z boxes for 'normal' to 1 and click the enable box. It will cut the volume mesh in half so you can see the internal volume elements and check they look ok
+- Export > Gmsh > v2.0 (ASCII) > save as .msh file
+
+4. dolfin-convert
+
+- In terminal, navigate to the .msh file
+- >>>dolfin-convert filename.msh filename.xml
+- This produces the .xml file to use as a mesh input in FEniCS and a ...facet_region.xml file which details the subdomains created. These can be used to define boundaries in FEniCS by refering to inflow/outflow/walls by the number indicated when pressing V in enGrid
+
+https://fenicsproject.org/qa/2986/how-to-define-boundary-condition-for-mesh-generated-by-gmsh/
+
+- To test the mesh has imported correctly, use the 'mesh_generation.py' file in Desktop>Meshes and replace the filename with the .xml file just created
+- Run the script and a .pvd file will be produced in the output folder which can be visualised in ParaView to see if the mesh looks as expected
+​

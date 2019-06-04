@@ -3,9 +3,14 @@
 ## Copyright Saswata Hier-Majumder, July, 2016
 ## Modified on August 2018
 ## This program solves an advection diffusion problem
-## with Darcy flow, using Dirichlet boundary conditions
-## for velocity and concentration
-## Modified by Joe Sun, February 2019
+## with Darcy flow
+## The boundary conditions are set as:
+## Input from left and output from right, 
+## left is adopting the velocity bc which is defined in a thin slice.
+## top_bottom is using DirichletBC now, non-slip, no concentration
+## front_back can be periodic bc, which will cost much memory.
+## front_back is using DirichletBC now, non-slip, no concentration 
+## Modified by Joe Sun, June 2019
 ####################################################
 
 from fenics import *
@@ -40,7 +45,7 @@ dt0 = 1.0e-1
 out_freq0 = 1
 
 # Parameters for mesh
-mesh_density = 30
+mesh_density = 20
 
 # Output files for quick visualisation
 file_name      =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
@@ -88,9 +93,10 @@ class SourceTerm(Expression):
     def eval(self, values, x):
         g1=x[0]*0.0*x[2]
         for ii in range(0,20):
-            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[2]*np.pi))            
-        g = (1.0-tanh(x[1]/0.01))*g1
-        values[0] = g
+            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[2]*np.pi))
+	if x[0]<2.25 and x[0]>1.75:            
+            g = (1.0-tanh(x[1]/0.01))*g1
+            values[0] = g
     def value_shape(self):
         return (1,)
 ###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;    
@@ -102,13 +108,14 @@ class BoundarySource(Expression):
     def eval_cell(self, values, x, ufl_cell):
         cell = Cell(self.mesh, ufl_cell.index)
         n = cell.normal(ufl_cell.local_facet)
-        g1=x[0]*0.0*x[2]
+	g1=x[0]*0.0*x[2]
         for ii in range(0,20):
             g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[2]*np.pi))
-        g = -10*g1  #-0.1*g1
-        values[0] = g*n[0]
-        values[1] = g*n[1]
-        values[2] = g*n[2]
+	if x[0]<2.25 and x[0]>1.75:
+            g = -10*g1  #-0.1*g1
+            values[0] = g*n[0]
+            values[1] = g*n[1]
+            values[2] = g*n[2]
     def value_shape(self):
         return (3,)
 
@@ -143,6 +150,9 @@ def right(x):
     return x[1] > ymax - DOLFIN_EPS
 def frnot_back(x):
     return x[0] < DOLFIN_EPS or x[0] > xmax - DOLFIN_EPS
+
+def left(x):
+    return x[1] < DOLFIN_EPS
 
 # Sub domain for Periodic boundary condition
 class PeriodicBoundary(SubDomain):
@@ -189,7 +199,7 @@ X  = FunctionSpace(mesh,"CG",1)#, constrained_domain=pbc)
 G=BoundarySource(mesh,element=V)
 G1=Constant(0)
 G2=Constant((0,0,0))
-G3=Constant((0.0,1.0,0.0))
+#G3=Constant((0.0,1.0,0.0))
 
 bc1 = DirichletBC(W.sub(0), G, left)
 bc2 = DirichletBC(W.sub(0), G2, top_bottom)
@@ -233,7 +243,7 @@ while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
     a,L = darcy.darcy_advection_rho_posi_random(W,mesh,sol_0,dt,f1=S,zh=Constant((0.0,0.0,1.0)) )
     #solve(a==L,sol,bc)
-    solve(a==L,sol,bc,solver_parameters={'linear_solver':'mumps'})
+    solve(a==L,sol,bc)#,solver_parameters={'linear_solver':'mumps'})
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()
 

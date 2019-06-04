@@ -208,7 +208,7 @@ S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S )
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S)
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()

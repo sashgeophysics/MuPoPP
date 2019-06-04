@@ -32,7 +32,7 @@ cfl0 = 0.1
 phi0 = 0.01
 beta=alpha0/phi0
 # Parameters for iteration
-T0 = 10
+T0 = 1.0
 dt0 = 1.0e-1
 out_freq0 = 1
 
@@ -208,7 +208,7 @@ S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.darcy_advection_rho_posi_random(W,mesh,sol_0,dt,f1=S )
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S )
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()

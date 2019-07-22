@@ -560,8 +560,25 @@ class DarcyAdvection():
     """
     This class solves for a simple advection-diffusion
     equation for a single or multicomponent flow, the governing
-    PDEs for Darcy flow are
-    
+    PDEs for Darcy flow are:        
+    div(u) = 0                                                          (1)
+    phi*u = -k*(grad(p)-drho*zhat)                                      (2)
+    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+    and  
+    dc1/dt = - Da*c0*c1/phi                                             (4)
+    where c0 and c1 are concentrations of the reactants in the liquid
+    and solid, u is the fluid velocity, p is pressure, k is permeability
+    drho=difference between liquid and solid densities, zhat is a unit
+    vecotr in vertically upward direction, Pe is Peclet number, Da is
+    the Dahmkoler number, beta is source strength, f is a function
+    for lateral variations in source of c0, and phi is the constant porosity
+
+    On initiation of the class:
+              the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
+              the timestep dt and CFL criterion are also loaded to default
+              values.
+    For the remaining functions, see the docstring of each individual function
+    for help.
     """
     
     def __init__(self,Pe=100,Da=10.0,phi=0.01,alpha=0.005,cfl=1.0e-2,dt=1.0e-2):
@@ -573,100 +590,80 @@ class DarcyAdvection():
         self.cfl=cfl
         self.dt=dt
         self.alpha=alpha
-    def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0))):
-        """            
+        
+    def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0)),TwodTrue=True):
+        """
+        This function creates the bilinear form of the Darcy flow equations:
+        div(u) = 0                            (1)
+        phi*u = -k*(grad(p)-drho*zhat)        (2)
+        can be used for a stand-alone Darcy flow formulation without concentration
+        profiles. 
+        Input:
+             W      : Mixed function space for velocity and pressure
+             mesh   : Fenics mesh on which W is defined
+             K      : Constant permeability
+             zhat   : 2D vertical unit vector
+             TwodTrue : True if the problem is 2D
+        Output:
+             a      : Left hand side of the weak formulation a=L
+             L      : Right hand side of the weak formulation
+        If a lateral variation in permeability exists, it can be incorporated
+        through the function f
         """
         U = TrialFunction(W)
         (v, q) = TestFunctions(W)
         u, p   = split(U)
-        
-        zhat=zh
-        
+        if TwodTrue:
+            zhat=zh        
+        else:
+            zhat=Constant((0.0,0.0,1.0))
         f=Expression("1.0",degree=1)
         # Define the variational form
-
         a = (inner(u,v)-K*div(v)*p+div(u)*q)*dx
         L = K*f*inner(v,zhat)*dx
-        
         return(a,L)
     
     def advection_diffusion(self,Q, u0, velocity, dt,mesh):
+        """
+        This function creates the bilienar form for advection reaction equations
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0 (3)
+                                  (4)
+        This function requires the knowledge of the velocity vector for advection.
+        Can be used as a stand-alone diffusion-advection solver if the velocity is 
+        already known.
+        Input:
+             Q       : Scalar function space for two concentration fields
+             u0      : Concentration field from the last timestep
+             velocity: Known vector field/function 
+             dt      : Time step for iteration
+             mesh    : Fenics mesh on which Q is defined
+        Output:
+             lhs(F)  : Left hand side of the bilinear form a=L
+             rhs(F)  : Right hand side of the bilinear form
+        This uses a Crank-Nicholson discretization of the time stepping. This is
+        incorporated in the term u_mid. The first order reaction rate is in f. It also
+        uses a simplified SUPG stabilization term using the cell diameter and norm
+        of the velocity vector.       
+        """
         
-        f  = Expression("0.0",degree=1)       
         h = CellDiameter(mesh)
-        # Parameters
-
         # Test and trial functions
         u, v = TrialFunction(Q), TestFunction(Q)
-        
         # Mid-point solution
         u_mid = 0.5*(u0 + u)
-    
         f = self.Da*u0 # need to modify for first order reaction
         # Residual
         r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)
-        
         # Galerkin variational problem
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
                 + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*self.Da*u0*v*dx
-        
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(velocity, velocity))
         F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
-        
         return lhs(F), rhs(F)
-    def advection_diffusion_two_component_nonadaptive(self,Q, c_prev, velocity, dt,mesh):
-        """ This function builds the bilinear form for component advection
-        diffusion for componet one. The source term depends on the concentration
-        of both components. Concentration of the other component should be
-        calculated outside this function after solving the bilinear form from
-        this step"""
-        
-        f  = Expression("0.0",degree=1)        
-        h = CellDiameter(mesh)
-        # Parameters
-        U = TrialFunction(Q)
-        (v, q) = TestFunctions(Q)
-        # u and c are the trial functions for the next time step
-        # u for comp 0 and c comp1 
-        u, c   = split(U)
+    
 
-        # u0 (component 0) and c0(component 1)
-        # are known values from the previous time step
-        u0 ,c0 = split(c_prev)
-        # Mid-point solution for comp 0
-        u_mid = 0.5*(u0 + u)
-
-       
-
-        # First order reaction term
-        f = self.Da*u0*c0
-        # Residual
-        r = u - u0 + dt*(dot(velocity, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)+c-c0+dt*f
-
-        
-
-
-        #####End adaptive time stepping
-        # Galerkin variational problem
-        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
-        
-        # Add SUPG stabilisation terms
-        vnorm = sqrt(dot(velocity, velocity))
-        #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx
-        alpha_SUPG=self.Pe*vnorm*h/2.0
-        term1_SUPG=0.5*h*(1.0/np.tanh(alpha_SUPG)-1.0/alpha_SUPG)/vnorm
-        term_SUPG = term1_SUPG*dot(velocity, grad(v))*r*dx
-        a = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-                + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
-                + q*(c - c0)*dx  + term_SUPG
-        L =     -dt*f*v*dx - dt*f*q*self.phi*dx
-        
-        #return lhs(F), rhs(F)
-        return a, L
-    def advection_diffusion_two_component(self,Q, c_prev, velocity,mesh):
+    def advection_diffusion_two_component_adaptive(self,Q, c_prev, velocity,mesh):
         """ This function builds the bilinear form for component advection
         diffusion for component one. The source term depends on the concentration
         of both components. Concentration of the other component should be
@@ -743,29 +740,143 @@ class DarcyAdvection():
         #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
         tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
         term_SUPG = tau_SUPG*dot(velocity, grad(v))*r*dx
-        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)\
-        #        + q*(c - c0)*dx  + term_SUPG
-        #F +=    f1*v*dx+f2*q*dx -(dt*self.Da*u0*c0*v/self.phi)*dx - dt*self.Da*u0*c0*q*dx 
-        
-        # Galerkin variational problem
-        #F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx\
-        #        + dot(grad(v), grad(u_mid)/self.Pe)*dx)+dt*f*v*dx\
-        #        + q*(c - c0)*dx + dt*f*q*self.phi*dx
-        
-        # Add SUPG stabilisation terms
-        #vnorm = sqrt(dot(velocity, velocity))
-        #F += (h/(2.0*vnorm))*dot(velocity, grad(v))*r*dx 
+
         F = v*(u - u0)*dx + dt*(v*dot(velocity, grad(u_mid))*dx \
                                 + dot(grad(v), grad(u_mid)/self.Pe)*dx) \
                                 + dt*f/self.phi*v*dx  - self.alpha/self.phi*dt*f1*v*dx\
                                 + q*(c - c0)*dx + dt*f/(1-self.phi)*q*dx
-        #5.f/self.phi 6.dt*f/(1-self.phi) 9.f1 
+        
         F += term_SUPG
         return lhs(F), rhs(F)
     
-    def darcy_advection_rho_posi_random(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0))):
-        """            
+    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1):
+        """     
+        This function returns the bilinear form for the system of PDES governing
+        an advection-reaction-two-component flow, the governing
+        PDEs for Darcy flow are:        
+        div(u) = 0                                                          (1)
+        phi*u = -k*(grad(p)-drho*zhat)                                      (2)
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+        and  
+        dc1/dt = - Da*c0*c1/phi                                             (4)
+        where 
+        drho = 1 + c0                                                       (5)
+        where c0 and c1 are concentrations of the reactants in the liquid
+        and solid, u is the fluid velocity, p is pressure, k is permeability
+        drho=difference between liquid and solid densities, zhat is a unit
+        vecotr in vertically upward direction, Pe is Peclet number, Da is
+        the Dahmkoler number, beta is source strength, f is a function
+        for lateral variations in source of c0, and phi is the constant porosity
+        Input:
+             W        : Mixed function space containing velocity, pressure and two
+                        concentrations
+             mesh     : Fenics mesh on which W is defined
+             sol_prev : All unknowns from the previous time step
+             dt       : time step
+             f1       : Spatially variable scalar function for the source term
+             K        : Constant permeability
+             zh       : Unit vector in the vertical direction
+        Output:
+             lhs(F)   : Left hand side of the combined bilinear form
+             rhs(F)   : Right hand side of the bilinear formulation
+        The bilinear form uses Crank-Nicholson time stepping and gives 
+        several options for SUPG stabilization. We recommend using Sendur 2018 formulation
+        for the SUPG term.
+        The bilinear form, combined together, becomes
+        phi*dot(u,v)-k*p*div(v)+div(u)*q + eta*(c0n-c0nm1)+eta*dot(u,grad(c_mid))*dt
+                 +dt*dot(grad(c_mid),grad(eta))/Pe+(c1_n-c1_nm1)*omega
+                 = K*drho*dot(zhat,v)-Da*c0*c1*dt*eta/phi 
+                   - beta*f1*dt*eta + Da*c0*c1*dt*omega/(1-phi)
+        In this code c0 is uc, c1 is cc, eta is vc, omega is qc
+        We recommend using this function preferentially over the other functions as
+        this combines all four equations into one bilinear form. If the density contrast
+        is constant, just replace drho with a constant value.
+        """
+	h = CellDiameter(mesh)
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc) = TestFunctions(W)
+        u, p, uc, cc   = split(U)
+        zhat=zh
+        deltarho=(1.0+uc)
+        # Define the variational form
+        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*deltarho*inner(v,zhat)*dx
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        u,p,u0 ,c0 = split(sol_prev)
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+        # First order reaction term
+        f = self.Da*u0*c0
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
+            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        # Default is Sendur 2018, a modification of Codina, 1997 also works
+        vnorm = sqrt(dot(u, u))
+        
+        if SUPG==1:
+            #Sendur 2018
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        elif SUPG==2:
+            #Codina 1997 eq. 114
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+            #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        else:
+            alpha_SUPG=self.Pe*vnorm*h/2.0
+            #Brookes and Hughes
+            coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+            tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG       
+        return lhs(F), rhs(F)
+    
+###################################################################
+### Advection diffusion equation in Stokes flow
+###################################################################
+class StokesAdvection():
+    """
+    This class solves for a simple advection-diffusion
+    equation for a single or multicomponent flow, the governing
+    PDEs for Stokes flow are:        
+    div(u) = 0                                                          (1)
+    -grad(p)+mu*div(grad(u)) +drho*g =0                                 (2)
+    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+    and  
+    dc1/dt = - Da*c0*c1/phi                                             (4)
+    where c0 and c1 are concentrations of the reactants in the liquid
+    and solid, u is the fluid velocity, p is pressure, k is permeability
+    drho=difference between liquid and solid densities, zhat is a unit
+    vecotr in vertically upward direction, Pe is Peclet number, Da is
+    the Dahmkoler number, beta is source strength, f is a function
+    for lateral variations in source of c0, and phi is the constant porosity
+
+    On initiation of the class:
+              the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
+              the timestep dt and CFL criterion are also loaded to default
+              values.
+    For the remaining functions, see the docstring of each individual function
+    for help.
+    """
+    
+    def __init__(self,Pe=100,Da=10.0,alpha=0.005,cfl=1.0e-2,dt=1.0e-2):
+        """Initiates the class. Inherits nondimensional numbers
+        from compaction, only need to add Pe"""
+        self.Pe=Pe
+        self.Da=Da
+        self.cfl=cfl
+        self.dt=dt
+        self.alpha=alpha
+    def stokes(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((1.0,0.0,0.0))):
+        """ This function substitutes in stokes flow instead of darcy flow
+            for use in pore space flow modelling where the solid phase has been
+            removed, making a phi value redundant            
         """
 	h = CellDiameter(mesh)
 
@@ -777,7 +888,9 @@ class DarcyAdvection():
         zhat=zh
 
         # Define the variational form
-        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*(1.0+uc)*inner(v,zhat)*dx
+	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
+        # Velocity is constant unless dependent on density as per
+        # the darcy_advection_rho_posi_random function 		through the 1.0+uc term 
 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
@@ -792,12 +905,12 @@ class DarcyAdvection():
 
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+		+ dt*f*vc*dx  - self.alpha*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f*qc*dx
         # Residual
         h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
-            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
+            - self.alpha*dt*f1 + cc-c0 + dt*f
         # Add SUPG stabilisation terms
         vnorm = sqrt(dot(u, u))
         
@@ -807,94 +920,66 @@ class DarcyAdvection():
         #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
         #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         #Sendur 2018
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #####tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
         #Codina 1997 eq. 114
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
         #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG
         
         return lhs(F), rhs(F)
-    
-####################################################################
-### Reaction Infiltration instability without matrix deformation
-####################################################################
-class RII_darcy():
-    """This class solves for a simpler case of compaction, 
-    matrix velocity = 0
-    The momentum conservation equation reduces to
-    -grad(p)=h                                (1)
-    Using the equation for mass conservation of the fluid and
-    momentum conservation of the fluid, using the fact that 
-    matrix velocity is zero, we get
-    u=phi*grad(p)
-    or 
-    u= -phi*h                                  (2)
-    where u is the melt velocity and
-    h = Da*grad(4*mu*Gamma/3)+(1-phi)*chi*grad(phi)/Bond
-    -(1-phi)*R*k                               (3)
-    where 
-    k=Vector(0,0,1)
-    This is a multicomponent system, so the mass of solute
-    and melt fraction are updated by the two following equations
-    d phi/dt + div(phi*u) = Da*Gamma/(1-R)      (4)
-    and 
-    phi*(dc/dt+div(phi*u))=div(phi*grad(c))/Pe
-    +Da*(1-c)*Gamma/(1-R)                       (5)
-    We prescribe an initial condition in phi and c, evaluate
-    u from equations (2) and (3) directly, and use this value
-    to march in time using equations (4) and (5)
-    """
-    
-    def __init__(self):
-        """Initiates the class. Inherits nondimensional numbers
-        from compaction, only need to add Pe"""
-        self.Pe=[]
 
-     
-    def mass_conservation(self,V,U, phi0,  dt, buyoancy,gam,mesh):
-        """ This function solves for the mass conservation 
-        equation in a multiphase  system. The governing PDE is
-        described in the class description. The weak formulation
-        is discussed in Appendix A of Allisic et al. (2014)
-        Input
-            V      : Function space for melt volume fraction and conc.
-            U      : Function space for melt velocity
-            phi0   : Melt volume fraction from previous time step
-            dt     : Length of current time step
-            gam    : A function describing melt generation
-            mesh   : Mesh for the problem
-        Returns:
-            lhs(F) : Left hand side of the bilinear form
-            rhs(F) : Right hand side of the bilinear form
-            b      : A preconditioner for iterative solution
+    def stokes_no_alpha(self,W,mesh,sol_prev,dt,K=0.1,zh=Constant((1.0,0.0,0.0))):
+        """ This function substitutes in stokes flow instead of darcy flow
+            for use in pore space flow modelling where the solid phase has been
+            removed, making a phi value redundant            
         """
-        phi1 = TrialFunction(V)
-        u    = TrialFunction(U)
-        w    = TestFunction(V)
-        phi_mid = 0.5*(phi1+phi0)
+	h = CellDiameter(mesh)
 
-        # Get the melt velocity from input phi
-        zhat=Constant((0.0, 0.0,1.0))      
-        chi=self.surface_tension_2(phi0)
-        u = phi0*(self.dL*(1.0-phi0)*(chi*grad(phi0)/self.B\
-             -(1.0-phi0)*self.R*buyoancy*zhat)\
-             +self.da*grad(4.0*gam/3.0/phi0))
-
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc) = TestFunctions(W)
+        u, p, uc, cc   = split(U)
         
-        F = w*(phi1 - phi0 + dt*(dot(u, grad(phi_mid)) \
-                                 -(1.0 - phi_mid)*div(u)) - self.da*gam)*dx
-        # SUPG stabilisation term
-        #h_SUPG   = CellSize(mesh)
-        h_SUPG   = CellDiameter(mesh)
-        residual = phi1 - phi0 + dt * (dot(u, grad(phi_mid)) \
-                                       - div(grad(phi_mid))-self.da*gam)
-        unorm    = sqrt(dot(u, u))
-        aval     = 0.5*h_SUPG*unorm
-        keff     = 0.5*((aval - 1.0) + abs(aval - 1.0))
-        stab     = (keff / (unorm * unorm)) * dot(u, grad(w)) * residual * dx
-        F       += stab
-        #Return a preconditioner for solving the time marching 
-        #by iterative solution, if needed
-        b=w*phi1*dx
-        return lhs(F), rhs(F),b
+        zhat=zh
+
+        # Define the variational form
+	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
+        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function    		through the 1.0+uc term 
+
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        u,p,u0 ,c0 = split(sol_prev)
+
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+
+        # First order reaction term
+        f = self.Da*u0*c0
+
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f*vc*dx\
+                + qc*(cc - c0)*dx + dt*f*qc*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
+            + cc-c0 + dt*f
+        # Add SUPG stabilisation terms
+        vnorm = sqrt(dot(u, u))
+        
+
+        #alpha_SUPG=self.Pe*vnorm*h/2.0
+        #Brookes and Hughes
+        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        #Sendur 2018
+        #####tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        #Codina 1997 eq. 114
+        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG
+        
+        return lhs(F), rhs(F)

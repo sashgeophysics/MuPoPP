@@ -749,7 +749,7 @@ class DarcyAdvection():
         F += term_SUPG
         return lhs(F), rhs(F)
     
-    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1):
+    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=1.0,rho0=1.0):
         """     
         This function returns the bilinear form for the system of PDES governing
         an advection-reaction-two-component flow, the governing
@@ -776,6 +776,9 @@ class DarcyAdvection():
              f1       : Spatially variable scalar function for the source term
              K        : Constant permeability
              zh       : Unit vector in the vertical direction
+             SUPG     : A counter for chosing between different SUPG terms
+             gam_rho  : The coefficient of concentration in the expression for drho
+             rho_0    : The intercept in the expression for drho
         Output:
              lhs(F)   : Left hand side of the combined bilinear form
              rhs(F)   : Right hand side of the bilinear formulation
@@ -797,8 +800,10 @@ class DarcyAdvection():
         U = TrialFunction(W)
         (v, q, vc, qc) = TestFunctions(W)
         u, p, uc, cc   = split(U)
-        zhat=zh
-        deltarho=(1.0+uc)
+        zhat=zhat
+        # Density contrast as a function of concentration
+        deltarho=rho_0+gam_rho*uc
+        
         # Define the variational form
         F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*deltarho*inner(v,zhat)*dx
         # uc and cc are the trial functions for the next time step
@@ -836,7 +841,8 @@ class DarcyAdvection():
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG       
         return lhs(F), rhs(F)
-    
+
+
 ###################################################################
 ### Advection diffusion equation in Stokes flow
 ###################################################################

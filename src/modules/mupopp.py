@@ -749,7 +749,7 @@ class DarcyAdvection():
         F += term_SUPG
         return lhs(F), rhs(F)
     
-    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=1.0,rho0=1.0):
+    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=1.0,rho_0=1.0):
         """     
         This function returns the bilinear form for the system of PDES governing
         an advection-reaction-two-component flow, the governing
@@ -800,7 +800,7 @@ class DarcyAdvection():
         U = TrialFunction(W)
         (v, q, vc, qc) = TestFunctions(W)
         u, p, uc, cc   = split(U)
-        zhat=zhat
+        zhat=zh
         # Density contrast as a function of concentration
         deltarho=rho_0+gam_rho*uc
         

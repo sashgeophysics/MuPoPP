@@ -25,7 +25,7 @@ parameters["std_out_all_processes"]=False
 # Parameters for initializing the object
 Da0  = 1.0
 Pe0  = 200.0
-alpha0= 0.1   # beta = alpha0/phi
+alpha0= 0.01   # beta = alpha0/phi
 Fe=0.01
 c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1
@@ -33,11 +33,11 @@ phi0 = 0.2
 beta=alpha0/phi0
 # Parameters for iteration
 T0 = 1.0
-dt0 = 1.0e-1
+dt0 = 1.0e-2
 out_freq0 = 1
 
 # Parameters for mesh
-mesh_density = 30
+mesh_density = 60
 
 # Output files for quick visualisation
 
@@ -65,6 +65,8 @@ def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname= output_dir + "/a_parame
     file.write("Pe:  %g\n" %Pe0)
     file.write("alpha:  %g\n" %alpha0)
     file.write("cfl:  %g\n" %cfl0)
+    file.write("dt0:  %g\n" %dt0)
+    file.write("T0:  %g\n" %T0)
     file.write("####################################")
     file.close
 
@@ -128,7 +130,32 @@ def left(x):
     return x[0] < DOLFIN_EPS
 def right(x):
     return x[0] > xmax - DOLFIN_EPS
-
+# Sub domain for Periodic boundary condition
+class PeriodicBoundary(SubDomain):
+    # Bottom boundary is "target domain" G
+    def inside(self, x, on_boundary):
+        return bool(near(x[0], xmin) and near(x[1], ymin) and on_boundary)   
+    # Map right boundary (H) to left boundary (G)
+    def map(self, x, y):
+        if near(x[0], xmax):
+            y[0] = x[0] - xmax
+            y[1] = x[1] - ymax
+            y[2] = x[2]
+        else:
+            y[0] = -1000
+            y[1] = -1000
+            y[2] = -1000
+        # Map front boundary (H) to back boundary (G)
+        if near(x[1], ymax):
+            y[0] = x[0] - xmax
+            y[1] = x[1] - ymax
+            y[2] = x[2]
+        else:
+            y[0] = -1000
+            y[1] = -1000
+            y[2] = -1000
+# Create periodic boundary condition
+pbc = PeriodicBoundary()        
 #Define function for source term in Governing equations
 
 ########### 3D######################
@@ -146,10 +173,11 @@ class SourceTerm(Expression):
         for ii in range(0,20):
             g1+=0.1*np.abs(np.sin(8.0*ii*x[1]*np.pi))*np.abs(np.sin(8.0*ii*x[0]*np.pi))
             
-        g = (1.0-tanh((1.0-x[2])/0.1))*g1
+        g = (1.0-tanh((1.0-x[2])/0.01))*g1
         values[0] = g
     def value_shape(self):
         return (1,)
+
     
 # Define function for BC
 class BoundarySource(Expression):
@@ -180,15 +208,15 @@ Q = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
 #Concentration
 Qc = FiniteElement("Lagrange",mesh.ufl_cell(), 1)
 # Make a mixed space
-W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc]))
-X  = FunctionSpace(mesh,"CG",1)
+W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc]), constrained_domain=pbc)
+X  = FunctionSpace(mesh,"CG",1, constrained_domain=pbc)
 
 
 # Define boundary conditions
 G=BoundarySource(mesh,element=V)
 bc1 = DirichletBC(W.sub(0),G, top)
-#bc2 = DirichletBC(W.sub(2),Constant(0.1), left)
-bc  = [bc1]
+bc2 = DirichletBC(W.sub(2),Constant(0.1), top)
+bc  = [bc1]#,bc2]
 
 ###########################
 ## Create an object

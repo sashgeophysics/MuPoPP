@@ -75,17 +75,32 @@ output_write(mesh_density,Da0,phi0,Pe0,alpha0,cfl0)
 ############################
 ## Numerical solution
 ############################
+def mesh_refine(lx,ly,lz,mesh_in):
+    m=mesh_in
+    x = m.coordinates()
+    zmax=np.max(x[:,2])
+    #Refine on top and bottom sides
+    x[:,2] = (x[:,2] - zmax*0.5) * 2.
+    x[:,2] = 0.5 * (np.cos(0.5*np.pi * (x[:,2] - zmax)) + zmax)   
+    
+    #Scale
+    x[:,0] = x[:,0]*lx
+    x[:,1] = x[:,1]*ly
+    x[:,2] = x[:,2]*lz
+
+    return m
 ########### 3D######################
 # Define the mesh
 xmin = 0.0
-xmax = 2.0
+xmax = 4.0
 ymin = 0.0
-ymax = 2.0
+ymax = 4.0
 zmin = 0.0
 zmax = 1.0
 #domain = Rectangle(Point(xmin,ymin),Point(xmax,ymax))
 domain = Box(Point(xmin,ymin,zmin),Point(xmax,ymax,zmax))
-mesh   = generate_mesh(domain,mesh_density)
+mesh1   = generate_mesh(domain,mesh_density)
+mesh = mesh_refine(1.0,1.0, 1.0,mesh1)
 ########### 3D######################
 #mesh = RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), 100, 50)
 #####################
@@ -94,7 +109,7 @@ mesh   = generate_mesh(domain,mesh_density)
 ## Define subdomain for flux calculation
 class Plane(SubDomain):
   def inside(self, x, on_boundary):
-    return x[0] > xmax - DOLFIN_EPS
+    return x[2] < DOLFIN_EPS
 facets = FacetFunction("size_t", mesh)
 Plane().mark(facets, 1)
 ds = Measure("ds")[facets]
@@ -129,7 +144,7 @@ class SourceTerm(Expression):
     def eval(self, values, x):
         g1=x[0]*0.0
         for ii in range(0,20):
-            g1+=0.1*np.abs(np.sin(4.0*ii*x[1]*np.pi))*np.abs(np.sin(4.0*ii*x[0]*np.pi))
+            g1+=0.1*np.abs(np.sin(8.0*ii*x[1]*np.pi))*np.abs(np.sin(8.0*ii*x[0]*np.pi))
             
         g = (1.0-tanh((1.0-x[2])/0.1))*g1
         values[0] = g
@@ -207,7 +222,7 @@ S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,zh=Constant((0.0,0.0,1.0)),gam_rho=-10.0)
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,zh=Constant((0.0,0.0,1.0)),gam_rho=-1.0,rho_0=0.0)
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()

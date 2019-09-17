@@ -749,18 +749,18 @@ class DarcyAdvection():
         F += term_SUPG
         return lhs(F), rhs(F)
     
-    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=1.0,rho_0=1.0):
+    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=1.0,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=-1.0,rho_0=1.0):
         """     
         This function returns the bilinear form for the system of PDES governing
         an advection-reaction-two-component flow, the governing
         PDEs for Darcy flow are:        
         div(u) = 0                                                          (1)
-        phi*u = -k*(grad(p)-drho*zhat)                                      (2)
-        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+        phi*u = -k*(grad(p)-rho*zhat)                                      (2)
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1**2/phi + beta*f (3)
         and  
-        dc1/dt = - Da*c0*c1/phi                                             (4)
+        dc1/dt = - 2*Da*c0*c1**2/phi                                             (4)
         where 
-        drho = 1 + c0                                                       (5)
+        drho = 1 + gam_rho c0                                                       (5)
         where c0 and c1 are concentrations of the reactants in the liquid
         and solid, u is the fluid velocity, p is pressure, k is permeability
         drho=difference between liquid and solid densities, zhat is a unit
@@ -813,15 +813,15 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
         # First order reaction term
-        f = self.Da*u0*c0
+        f = self.Da*u0*c0*c0
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+                + qc*(cc - c0)*dx + 2.0*dt*f/(1-self.phi)*qc*dx
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
-            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+            - self.alpha/self.phi*dt*f1 + cc-c0 + 2.0*dt*f/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))

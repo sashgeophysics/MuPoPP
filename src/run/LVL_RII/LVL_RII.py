@@ -27,7 +27,6 @@ Da0  = 20.0
 Pe0  = 5.0e2
 alpha0= 0.1   # beta = alpha0/phi
 Fe=0.01
-c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1
 phi0 = 0.01
 beta=alpha0/phi0
@@ -37,7 +36,7 @@ dt0 = 1.0e-1
 out_freq0 = 1
 
 # Parameters for mesh
-mesh_density = 60
+mesh_density = 30
 
 # Output files for quick visualisation
 
@@ -184,6 +183,7 @@ darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
 # Define initial conditions
 sol_0 = Function(W)
 temp2 = Function(X)
+c01_temp=Expression("0.01",element=Q) #Fe
 temp2.interpolate(c01_temp)
 c01 = temp2
 assign(sol_0.sub(3), c01)

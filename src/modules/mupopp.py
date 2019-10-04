@@ -813,15 +813,22 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
         # First order reaction term
-        f = self.Da*u0*c0
+        # For chemical reaction
+        # MgCO3+2Fe = C + 3 Fe(2/3)Mg(1/3)O
+        # Assuming forward reaction controls the rate
+        f21 = self.Da*u0*c0*c0 #reaction rate for Fe
+        #Ratio of molar masses of MgCO3 and 2* Fe
+        fac = (24.0+12.0+3.0*16.0)/2.0/56.0
+        f11 = fac*self.Da*u0*c0*c0 #reaction rate for carbonate
+          
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f/self.phi*vc*dx  - self.beta*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+		+ dt*f11/self.phi*vc*dx  - self.beta*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f21/(1-self.phi)*qc*dx
         # Residual
         h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
-            - self.beta*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+            - self.beta*dt*f1 + cc-c0 + dt*f21/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))

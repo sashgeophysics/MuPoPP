@@ -590,7 +590,7 @@ class DarcyAdvection():
         self.cfl=cfl
         self.dt=dt
         self.alpha=alpha
-        
+        self.beta=alpha/phi
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0)),TwodTrue=True):
         """
         This function creates the bilinear form of the Darcy flow equations:
@@ -802,7 +802,7 @@ class DarcyAdvection():
         u, p, uc, cc   = split(U)
         zhat=zh
         # Density contrast as a function of concentration
-        deltarho=rho_0+gam_rho*uc
+        deltarho=rho_0-gam_rho*uc
         
         # Define the variational form
         F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*deltarho*inner(v,zhat)*dx
@@ -813,15 +813,15 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
         # First order reaction term
-        f = self.Da*u0*c0*c0
+        f = self.Da*u0*c0
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + 2.0*dt*f/(1-self.phi)*qc*dx
+		+ dt*f/self.phi*vc*dx  - self.beta*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
-            - self.alpha/self.phi*dt*f1 + cc-c0 + 2.0*dt*f/(1.0-self.phi)
+            - self.beta*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))

@@ -23,7 +23,7 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 100.0
+Da0  = 1.0
 Pe0  = 100.0
 alpha0= 0.05   # beta = alpha0/phi
 phi0 = 0.01
@@ -31,8 +31,8 @@ beta=alpha0/phi0
 Fe=0.01
 cfl0 = 0.01
 # Parameters for iteration
-T0 = 3.0
-dt0 = 0.03
+T0 = 6.0
+dt0 = 3.0e-1
 out_freq0 = 1
 
 # Parameters for mesh
@@ -41,7 +41,7 @@ mesh_density = 40
 # Output files for quick visualisation
 
 file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
-output_dir     =  "output/"
+output_dir     =  "output_constant_rho/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
 
@@ -209,7 +209,7 @@ S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=0.1)
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=0.1,gam_rho=0.0)
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()

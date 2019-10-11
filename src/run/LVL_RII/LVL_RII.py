@@ -25,14 +25,14 @@ parameters["std_out_all_processes"]=False
 # Parameters for initializing the object
 Da0  = 100.0
 Pe0  = 100.0
-alpha0= 0.05   # beta = alpha0/phi
+alpha0= 0.01   # beta = alpha0/phi
 phi0 = 0.01
 beta=alpha0/phi0
 Fe=0.01
 cfl0 = 0.01
 # Parameters for iteration
-T0 = 3.0
-dt0 = 0.03
+T0 = 2.0
+dt0 = 0.1
 out_freq0 = 1
 
 # Parameters for mesh

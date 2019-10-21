@@ -1,9 +1,9 @@
 from fenics import *
 from mshr import*
 import numpy, scipy, sys, math
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
-#sys.path.insert(0, '../../modules/')
+sys.path.insert(0, '../../modules/')
 
 from mupopp import *
 

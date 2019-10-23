@@ -1,9 +1,9 @@
 from fenics import *
 from mshr import*
 import numpy, scipy, sys, math
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
-sys.path.insert(0, '../../modules/')
+#sys.path.insert(0, '../../modules/')
 
 from mupopp import *
 
@@ -45,7 +45,7 @@ v_init=Expression(("0.0","0.0","0.0"),degree=3)
 # T0 = 10000 = 22 minutes
 # T0 = 100000 = 3hrs 37 mins
 
-T0 = 10000.0
+T0 = 10000
 dt0 = 100
 out_freq0 = 1
 
@@ -54,7 +54,7 @@ out_freq0 = 1
 ######################
 
 # Output files for visualisation
-file_name      = "Da_%.1E_Pe_%.1E"%(Da0,Pe0) #Automatically names the output files
+file_name      = "flux_BFS2_Da_%.1E_Pe_%.1E"%(Da0,Pe0) #Automatically names the output files
 output_dir     = file_name + "_output/"
 extension      = "pvd"
 
@@ -110,6 +110,10 @@ hdf.read(mesh, "/mesh", False)
 #boundaries = FacetFunction("size_t", mesh) # Works but has been depricated in 2017.2.0 and replaced as below
 boundaries = MeshFunction("size_t", mesh, mesh.topology().dim()-1)
 hdf.read(boundaries, "/boundaries")
+
+# Define ds (2D surface for flux) and n (unit vector normal to a plane)
+ds = Measure("ds", domain = mesh, subdomain_data = boundaries)
+n = FacetNormal(mesh)
 
 # Create FunctionSpaces for each unknown to be calculated in
 
@@ -196,6 +200,12 @@ T = T0
 dt = dt0
 t = dt
 
+# Empty arrays to be filled with flux values and time values at each time step
+flux=np.array([])
+flux3=np.array([])
+mass=np.array([])
+time_array=np.array([])
+
 # Iteration number and definition of output frequency for a result from the top
 i = 1
 out_freq = out_freq0
@@ -227,12 +237,25 @@ while t - T < DOLFIN_EPS:
         c1_out << c01
 	c02.rename("[C]","")
         c2_out << c02
+	# Calculate CO3 2- input flux
+        flux1 = assemble(c00*dot(u, -n)*ds(1))
+        flux = np.append(flux,flux1)
+        time_array=np.append(time_array,t)
+        #print "flux 1: ", flux1
+	# Calculate C mass precipitated in the domain
+        mass1 = assemble(c02*dx)
+        mass = np.append(mass,mass1)
+        #print "mass 1: ", mass1
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
+    flux_file_CO3=output_dir + file_name + "_CO3_flux.csv"
+    np.savetxt(flux_file_CO3,(time_array,flux),delimiter=',')
+    mass_file_C=output_dir + file_name + "_C_mass.csv"
+    np.savetxt(mass_file_C,(time_array,mass),delimiter=',')
 
 #######################################################################################################################
 

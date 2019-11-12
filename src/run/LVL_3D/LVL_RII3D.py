@@ -26,22 +26,22 @@ parameters["std_out_all_processes"]=False
 
 # Parameters for initializing the object
 Da0  = 10.0
-Pe0  = 1.0e2
+Pe0  = 1.0e3
 alpha0= 0.01   # beta = alpha0/phi
-c01_temp=Expression("0.01",degree=1) #Fe
+
 cfl0 = 0.1
 phi0 = 0.01
-
+beta=alpha0/phi0
 # Parameters for iteration
-T0 = 10
+T0 = 2.0
 dt0 = 1.0e-1
 out_freq0 = 1
-
+Fe=0.01
 # Parameters for mesh
 mesh_density = 30
 
 # Output files for quick visualisation
-file_name      = "2.da30_pe1e2_c0.01_b1_rho"
+file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -102,7 +102,7 @@ class SourceTerm(Expression):
     def eval(self, values, x):
         g1=x[0]*x[1]*0.0
         for ii in range(0,20):
-            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
+            g1+=0.01*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
             
         g = (1.0-tanh(x[2]/0.01))*g1
         values[0] = g
@@ -119,8 +119,8 @@ class BoundarySource(Expression):
         n = cell.normal(ufl_cell.local_facet)
         g1=x[0]*x[1]*0.0
         for ii in range(0,20):
-            g1+=0.1*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
-        g = -0.1*g1
+            g1+=0.01*np.abs(np.sin(ii*x[0]*np.pi))#*np.abs(np.sin(ii*x[1]*np.pi))
+        g = -g1
         values[0] = g*n[0]
         values[1] = g*n[1]
         values[2] = g*n[2]
@@ -196,8 +196,9 @@ X  = FunctionSpace(mesh,"CG",1, constrained_domain=pbc)
 
 # Define boundary conditions
 G=BoundarySource(mesh,element=V)
-bc1 = DirichletBC(W.sub(0), G, bottom)
-bc  = [bc1]
+bc1 = DirichletBC(W.sub(0), Constant((0.0,0.0,0.1)), bottom)
+bc2 = DirichletBC(W.sub(2), Constant(0.2), bottom)
+bc  = [bc1]#,bc2]
 
 ###########################
 ## Create an object
@@ -207,6 +208,7 @@ darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
 # Define initial conditions
 sol_0 = Function(W)
 temp2 = Function(X)
+c01_temp=Expression("0.01",degree=1) #Fe
 temp2.interpolate(c01_temp)
 c01 = temp2
 assign(sol_0.sub(3), c01)
@@ -230,7 +232,7 @@ S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.darcy_advection_rho_posi_random(W,mesh,sol_0,dt,f1=S,zh=Constant((0.0,0.0,1.0)) )
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=0.1,zh=Constant((0.0,0.0,1.0)) )
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01 = sol.split()

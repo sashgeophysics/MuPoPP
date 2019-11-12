@@ -26,13 +26,13 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 1.0e-4
-Pe0  = 1.0e6
+Da0  = 0.1
+Pe0  = 5.0e2
 alpha0= 1.0e-8   # beta = alpha0/phi
 Fe=0.1
 c01_temp=Expression("0.1",degree=1) #Fe
 cfl0 = 0.1
-phi0 = 0.1
+phi0 = 0.05
 beta=alpha0/phi0
 # Parameters for iteration
 T0 = 2.0
@@ -213,11 +213,16 @@ W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc,Qc]), constrained_domain=
 X  = FunctionSpace(mesh,"CG",1, constrained_domain=pbc)
 # Define boundary conditions
 G=BoundarySource(mesh,element=V)
-u0=Constant((0.0,-1.0))
+u0=Constant((0.0,-0.5))
 #bc1 = DirichletBC(W.sub(0),G, top)
+#Constant velocity at the top boundary
 bc1 = DirichletBC(W.sub(0),u0, top)
+#Constant H2CO3 concentration at the top boundary
 bc2 = DirichletBC(W.sub(2),Constant(0.1), top)
-bc  = [bc1,bc2]
+#Zero velocity at the bottom boundary
+#u_bot=Constant((0.0,0.0))
+#bc3 = DirichletBC(W.sub(0),u_bot, bottom)
+bc  = [bc1,bc2]#,bc3]
 
 ###########################
 ## Create an object

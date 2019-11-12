@@ -1118,8 +1118,8 @@ class CCS():
           
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f11/self.phi*vc*dx  - self.beta*dt*f_source*vc*dx \
-                + qc*(cc - c0)*dx + dt*f21/(1-self.phi)*qc*dx+ qc1*(cc1 - c1)*dx - dt*f21/(1-self.phi)*qc1*dx
+		+ (dt*f11/self.phi)*vc*dx  - self.beta*dt*f_source*vc*dx \
+                + qc*(cc - c0)*dx + dt*(f21/(1-self.phi))*qc*dx+ qc1*(cc1 - c1)*dx - dt*(f21/(1-self.phi))*qc1*dx
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\

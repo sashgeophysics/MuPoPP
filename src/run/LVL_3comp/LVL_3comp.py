@@ -16,8 +16,6 @@ import numpy, scipy, sys, math
 sys.path.insert(0, '../../modules/')
 from mupopp import *
 
-# muppop_Joe contains the newest equations
-#from mupopp_Joe import *
 
 #####################################################
 parameters["std_out_all_processes"]=False
@@ -25,22 +23,23 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 10.0
-Pe0  = 1.0e3
+Da0  = 100.0
+Pe0  = 100.0
 alpha0= 0.01   # beta = alpha0/phi
-
-cfl0 = 0.1
 phi0 = 0.01
 beta=alpha0/phi0
+Fe=0.01
+cfl0 = 0.01
 # Parameters for iteration
 T0 = 2.0
-dt0 = 1.0e-1
+dt0 = 0.1
 out_freq0 = 1
-Fe=0.01
+
 # Parameters for mesh
-mesh_density = 30
+mesh_density = 40
 
 # Output files for quick visualisation
+
 file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f"%(Da0,Pe0,beta,Fe)
 output_dir     =  "output/"
 
@@ -50,6 +49,7 @@ velocity_out   = File(output_dir + file_name + "_velocity." + extension, "compre
 pressure_out   = File(output_dir + file_name + "_pressure." + extension, "compressed")
 c0_out         = File(output_dir + file_name + "_concentration0." + extension, "compressed")
 c1_out         = File(output_dir + file_name + "_concentration1." + extension, "compressed")
+c2_out         = File(output_dir + file_name + "_concentration2." + extension, "compressed")
 initial_c0_out = File(output_dir + file_name + "_initial_c0." + extension, "compressed")
 initial_c1_out = File(output_dir + file_name + "_initial_c1." + extension, "compressed")
 
@@ -69,9 +69,9 @@ def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname= output_dir + "/a_parame
     file.close
 
 output_write(mesh_density,Da0,phi0,Pe0,alpha0,cfl0)
-###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;
+
 #Define function for source term in Governing equations
-class SourceTerm_2D(Expression):
+class SourceTerm(Expression):
     """ Creates an expression for the source term
     in the advection reaction equations.
     The source term consists of a series of
@@ -90,25 +90,6 @@ class SourceTerm_2D(Expression):
     def value_shape(self):
         return (1,)
     
-class SourceTerm(Expression):
-    """ Creates an expression for the source term
-    in the advection reaction equations.
-    The source term consists of a series of
-    sine waves.
-    """
-    def __init__(self, mesh,element):
-        self.mesh = mesh
-        self.element=element
-    def eval(self, values, x):
-        g1=x[0]*x[1]*0.0
-        for ii in range(0,20):
-            g1+=0.01*np.abs(np.sin(ii*x[0]*np.pi))*np.abs(np.sin(ii*x[1]*np.pi))
-            
-        g = (1.0-tanh(x[2]/0.01))*g1
-        values[0] = g
-    def value_shape(self):
-        return (1,)
-###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;    
 # Define function for BC
 class BoundarySource(Expression):
     def __init__(self, mesh,element):
@@ -117,68 +98,64 @@ class BoundarySource(Expression):
     def eval_cell(self, values, x, ufl_cell):
         cell = Cell(self.mesh, ufl_cell.index)
         n = cell.normal(ufl_cell.local_facet)
-        g1=x[0]*x[1]*0.0
+        g1=x[0]*0.0
         for ii in range(0,20):
-            g1+=0.01*np.abs(np.sin(ii*x[0]*np.pi))#*np.abs(np.sin(ii*x[1]*np.pi))
+            g1+=0.01*np.abs(np.sin(ii*x[0]*np.pi))
         g = -g1
         values[0] = g*n[0]
         values[1] = g*n[1]
-        values[2] = g*n[2]
     def value_shape(self):
-        return (3,)
+        return (2,)
 
 
 ############################
 ## Numerical solution
 ############################
-###;;;;;;;;;;;;;;;; 2D>3D change area;;;;;;;;;;;;;;;;;;;;;
+
 # Define the mesh
 xmin = 0.0
 xmax = 4.0
 ymin = 0.0
-ymax = 4.0
-zmin = 0.0
-zmax = 1.0
-domain = Box(Point(xmin,ymin,zmin),Point(xmax,ymax,zmax))
-#Rectangle(Point(xmin,ymin),Point(xmax,ymax))
+ymax = 1.0
+domain = Rectangle(Point(xmin,ymin),Point(xmax,ymax))
 mesh   = generate_mesh(domain,mesh_density)
 #mesh = RectangleMesh(Point(xmin, ymin), Point(xmax, ymax), 100, 50)
-    
+#####################
+
+# Mark facets
+## Define subdomain for flux calculation
+class Plane(SubDomain):
+  def inside(self, x, on_boundary):
+    return x[1] > ymax - DOLFIN_EPS
+facets = FacetFunction("size_t", mesh)
+Plane().mark(facets, 1)
+ds = Measure("ds")[facets]
+n = FacetNormal(mesh)
+####################
 # Define essential boundary
 def top_bottom(x):
-    return x[2] < DOLFIN_EPS or x[2] > zmax - DOLFIN_EPS
+    return x[1] < DOLFIN_EPS or x[1] > ymax - DOLFIN_EPS
 def bottom(x):
-    return x[2] < DOLFIN_EPS
+    return x[1] < DOLFIN_EPS
 def top(x):
-    return x[2] > zmax - DOLFIN_EPS
+    return x[1] > ymax - DOLFIN_EPS
 
 # Sub domain for Periodic boundary condition
 class PeriodicBoundary(SubDomain):
     # Bottom boundary is "target domain" G
     def inside(self, x, on_boundary):
-        #return bool(near(x[0], xmin) or near(x[1], ymin) and on_boundary)
-        return bool((near(x[0], xmin) or near(x[1], ymin)) and (not ((near(x[0], xmax) and near(x[1], ymin)) or (near(x[0], xmin) and near(x[1], ymax)))) and on_boundary)
+        return bool(near(x[0], xmin) and on_boundary)   
     # Map right boundary (H) to left boundary (G)
-    # and front boundary to the back boundary
     def map(self, x, y):
         if near(x[0], xmax):
             y[0] = x[0] - xmax
-            y[1] = x[1]
-            y[2] = x[2]  
-        elif near(x[1], ymax):
-            y[0] = x[0] 
-            y[1] = x[1]-ymax
-            y[2] = x[2]  
+            y[1] = x[1]            
         else:
             y[0] = -1000
             y[1] = -1000
-            y[2] = -1000
-            
-
-           
 # Create periodic boundary condition
 pbc = PeriodicBoundary()            
-###;;;;;;;;;;;;;;;; 2D>3D change area end;;;;;;;;;;;;;;;;;;;;;
+
 ############################
 ## Darcy velocity
 ############################
@@ -190,15 +167,15 @@ Q = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
 #Concentration
 Qc = FiniteElement("Lagrange",mesh.ufl_cell(), 1)
 # Make a mixed space
-W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc]), constrained_domain=pbc)
+W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc,Qc]), constrained_domain=pbc)
 X  = FunctionSpace(mesh,"CG",1, constrained_domain=pbc)
 
 
 # Define boundary conditions
 G=BoundarySource(mesh,element=V)
-bc1 = DirichletBC(W.sub(0), Constant((0.0,0.0,0.1)), bottom)
-bc2 = DirichletBC(W.sub(2), Constant(0.2), bottom)
-bc  = [bc1]#,bc2]
+#bc1 = DirichletBC(W.sub(0), G, bottom)
+bc1 = DirichletBC(W.sub(0), Constant((0.0,0.1)), bottom)
+bc  = [bc1]
 
 ###########################
 ## Create an object
@@ -208,7 +185,7 @@ darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
 # Define initial conditions
 sol_0 = Function(W)
 temp2 = Function(X)
-c01_temp=Expression("0.01",degree=1) #Fe
+c01_temp=Expression("0.01",element=Q) #Fe
 temp2.interpolate(c01_temp)
 c01 = temp2
 assign(sol_0.sub(3), c01)
@@ -225,18 +202,19 @@ sol = Function(W)
 T = T0
 dt = dt0
 t = dt
-
+flux=np.array([])
+carbon=np.array([])
+time_array=np.array([])
 i = 1
 out_freq = out_freq0
 S=SourceTerm(mesh,element=Qc)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=0.1,zh=Constant((0.0,0.0,1.0)) )
+    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f1=S,K=0.1)
     solve(a==L,sol,bc)
     sol_0 = sol
-    u0,p0,c00,c01 = sol.split()
-
+    u0,p0,c00,c01,c02 = sol.split()
     if i % out_freq == 0:
 	u0.rename("velocity","")
 	velocity_out << u0
@@ -246,9 +224,23 @@ while t - T < DOLFIN_EPS:
         c0_out << c00
         c01.rename("[Fe]","")
         c1_out << c01
+        c02.rename("[C]","")
+        c2_out << c02
+        ## Calculate flux
+        flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
+        flux= np.append(flux,flux1)
+        time_array=np.append(time_array,t)
+        #calculate mass of carbon deposited
+        mass1=assemble(c02*(1.0-phi0)*dx)
+        carbon = np.append(carbon,mass1)
+        #print "flux 1: ", flux_1
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
+flux_file=output_dir + file_name + "_flux.csv"
+np.savetxt(flux_file,(time_array,flux),delimiter=',')
+mass_file=output_dir + file_name + "_mass.csv"
+np.savetxt(mass_file,(time_array,carbon),delimiter=',')

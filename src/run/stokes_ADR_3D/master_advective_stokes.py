@@ -7,6 +7,9 @@ import numpy, scipy, sys, math
 
 from mupopp import *
 
+import time
+start_time = time.time()
+
 #####################################################
 parameters["std_out_all_processes"]=False
 #set_log_level(30) #Critical info only
@@ -54,7 +57,7 @@ out_freq0 = 1
 ######################
 
 # Output files for visualisation
-file_name      = "flux_BFS2_Da_%.1E_Pe_%.1E"%(Da0,Pe0) #Automatically names the output files
+file_name      = "BFS2_Da_%.1E_Pe_%.1E"%(Da0,Pe0) #Automatically names the output files
 output_dir     = file_name + "_output/"
 extension      = "pvd"
 
@@ -63,6 +66,7 @@ pressure_out   = File(output_dir + file_name + "_pressure." + extension, "compre
 c0_out         = File(output_dir + file_name + "_concentration0." + extension, "compressed")
 c1_out         = File(output_dir + file_name + "_concentration1." + extension, "compressed")
 c2_out         = File(output_dir + file_name + "_concentration2." + extension, "compressed")
+
 # Output parameters
 def output_write(Da,Pe,cfl,fname= output_dir + "/a_parameters.out"):
     """This function saves the output of iterations"""
@@ -97,7 +101,7 @@ class BoundaryConcentration(Expression):
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "sample_mesh.xml"
+mesh_fname = "BFS2_mesh.xml"
 extension = ".h5"
 
 # Read in the .xml mesh converted to .h5 format
@@ -205,6 +209,11 @@ flux=np.array([])
 flux3=np.array([])
 mass=np.array([])
 time_array=np.array([])
+avg_conc=np.array([])
+
+one = Expression(("1.0"),degree=1)
+temp5 = Function(X)
+temp5.interpolate(one)
 
 # Iteration number and definition of output frequency for a result from the top
 i = 1
@@ -217,7 +226,7 @@ out_freq = out_freq0
 while t - T < DOLFIN_EPS:
     # We solve for a and L defined in the module by the d_a_r_p_r function
     # We provide the mixed function space, mesh, time step size, source term, initial conditions and flow direction
-    a,L=stokes.stokes_no_alpha(W,mesh,sol_prev=sol_initial,dt=dt0,K=0.1,zh=Constant((1.0,0.0,0.0)))
+    a,L=stokes.stokes_advection_diffusion_three_component(W,mesh,sol_prev=sol_initial,dt=dt0,K=0.1,zh=Constant((1.0,0.0,0.0)))
     # Solve for a and L to get the solution, sol which contains all 5 values for the given boundary conditions
     #solve(a==L,sol,bc)
     solve(a==L,sol,bc,solver_parameters={'linear_solver':'mumps'})
@@ -241,11 +250,11 @@ while t - T < DOLFIN_EPS:
         flux1 = assemble(c00*dot(u, -n)*ds(1))
         flux = np.append(flux,flux1)
         time_array=np.append(time_array,t)
-        #print "flux 1: ", flux1
 	# Calculate C mass precipitated in the domain
         mass1 = assemble(c02*dx)
         mass = np.append(mass,mass1)
-        #print "mass 1: ", mass1
+	avg_conc1 = assemble(c02*dx)/assemble(temp5*dx)
+	avg_conc = np.append(avg_conc,avg_conc1)
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
@@ -255,51 +264,7 @@ while t - T < DOLFIN_EPS:
     flux_file_CO3=output_dir + file_name + "_CO3_flux.csv"
     np.savetxt(flux_file_CO3,(time_array,flux),delimiter=',')
     mass_file_C=output_dir + file_name + "_C_mass.csv"
-    np.savetxt(mass_file_C,(time_array,mass),delimiter=',')
+    np.savetxt(mass_file_C,(time_array,mass,avg_conc),delimiter=',')
+    info("Time elapsed %s seconds ---" % (time.time() - start_time))
 
-#######################################################################################################################
-
-"""
-# Parameters for iteration
-T = T0
-darcy.dt = dt0
-t = darcy.dt
-
-i = 1
-out_freq = out_freq0
-# Save the dt and time values in an array
-dt_array = []
-time_array = []
-while t - T < DOLFIN_EPS:
-
-    # Update the concentration of component 0
-    ac,Lc = darcy.advection_diffusion_two_component_source_term(QM,c0,vel,mesh)
-    solve(ac==Lc,sol_c)#,bc_c) # tranfer the DirichletBC into a source term
-    c0 = sol_c
-    #c0.assign(sol_c) # 'assign' is verified to be equal to '=' here
-    c00,c01 = sol_c.split()
-    if i % out_freq == 0:
-        c00.rename("[CO3]","")
-        c0_out << c00
-        c01.rename("[Fe]","")
-        c1_out << c01
-    # Move to next interval and adjust boundary condition
-    dt_array.append(darcy.dt)
-    time_array.append(t)
-    info("time t =%g\n" %t)
-    info("iteration =%g\n" %i)
-    #print 'iteration',i
-    t += darcy.dt
-    i += 1
-
-#Write dt and time into a file
-dt_time=np.array([time_array,dt_array])
-np.savetxt('dt_time.dat',dt_time)
-#plt.loglog(time_array,dt_array,'or')
-#plt.xlabel('time')
-#plt.ylabel('dt')
-#plt.show()
-
-
-# Fast sovler with a fixed dt
-"""
+info("Finished execution in %s seconds ---" % (time.time() - start_time))

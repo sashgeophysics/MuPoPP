@@ -33,7 +33,7 @@ Fe=0.1
 c01_temp=Expression("0.1",degree=1) #Fe
 cfl0 = 0.1
 phi0 = 0.05
-beta=alpha0/phi0
+
 # Parameters for iteration
 T0 = 2.0
 dt0 = 1.0e-1
@@ -44,7 +44,7 @@ mesh_density = 80
 
 # Output files for quick visualisation
 
-file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0)
+file_name      =  "Da_%3.2f_Pe_%.1E_alpha_%.1E_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,alpha0,Fe,phi0)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -59,7 +59,7 @@ initial_c1_out = File(output_dir + file_name + "_initial_c1." + extension, "comp
 porosity_out   = File(output_dir + file_name + "_porosity." + extension, "compressed")
 perm_out       = File(output_dir + file_name + "_permeability." + extension, "compressed")
 # Output parameters
-parname = "output/" + "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0) + "_parameters.out"
+parname = "output/" + "Da_%3.2f_Pe_%.1E_alpha_%.1E_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,alpha0,Fe,phi0) + "_parameters.out"
 def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname):
     """This function saves the output of iterations"""
     file=open(fname,"a")
@@ -249,6 +249,8 @@ T = T0
 dt = dt0
 t = dt
 flux=np.array([])
+mass=np.array([])
+avg_conc=np.array([])
 time_array=np.array([])
 i = 1
 out_freq = out_freq0
@@ -277,20 +279,34 @@ while t - T < DOLFIN_EPS:
         flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
         flux= np.append(flux,flux1)
         time_array=np.append(time_array,t)
-        #calculate mass of carbon deposited
-        mass1=assemble(c02*(1.0-phi0)*dx)
-        carbon = np.append(caco3,mass1)
+        #print "flux 1: ", flux_1
+	## Calculate the mass of CaCO3
+	mass1 = assemble(c02*dx)
+	mass = np.append(mass,mass1)
+
+	#Calculate the mesh volume
+	one1 = Expression(("1.0"),degree=1)
+	one = Function(X)
+	one.interpolate(one1)
+	V_mesh = assemble(one*dx) #mesh volume
+
+	#Calculate the average concentration of CaCO3 over volume
+	avg_conc1 = assemble(c02*(1.0-phi0)*dx)/V_mesh
+	avg_conc = np.append(avg_conc,avg_conc1)
+	
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
+
 flux_file=output_dir + file_name + "_flux.csv"
 np.savetxt(flux_file,(time_array,flux),delimiter=',')
-caco3_file=output_dir + file_name + "_mass.csv"
-np.savetxt(caco3_file,(time_array,carbon),delimiter=',')
-
+mass_file=output_dir + file_name + "_mass.csv"
+np.savetxt(flux_file,(time_array,mass),delimiter=',')
+avg_conc_file=output_dir + file_name + "_avg_conc.csv"
+np.savetxt(flux_file,(time_array,avg_conc),delimiter=',')
 ######################
 #
 perm1 = Function(X)

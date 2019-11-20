@@ -989,22 +989,23 @@ class StokesAdvection():
         
         return lhs(F), rhs(F)
 
-    def stokes_advection_diffusion_three_component(self,W,mesh,sol_prev,dt,K=1.0,zh=Constant	((1.0,0.0,0.0)),SUPG=2):
+    def stokes_ADR_precipitation(self,W,mesh,sol_prev,dt,zh=Constant((1.0,0.0,0.0)),SUPG=2):
 
 	    h = CellDiameter(mesh)
+	    
 	    # TrialFunctions and TestFunctions
             U = TrialFunction(W)
             (v, q, vc, qc, qc1) = TestFunctions(W)
-            u, p, uc, cc, cc1   = split(U)
+            u, p, uc, cc, cc1 = split(U)
             zhat=zh
             
-            # Define the variational form
+       	    # Define the variational form for velocity and pressure equation
 	    F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
             # uc and cc are the trial functions for the next time step
             # uc for comp cc and d comp1 
             # u0 (component 0), c0(component 1), and c1(component 3)
             # are known values from the previous time step
-            u,p,u0 ,c0,c1 = split(sol_prev)
+            u,p,u0,c0,c1 = split(sol_prev)
             # Mid-point solution for comp 0
             u_mid = 0.5*(u0 + uc)
             # First order reaction term
@@ -1013,7 +1014,7 @@ class StokesAdvection():
             # Assuming forward reaction controls the rate
             # Total molar mass is calculated from
             # H2CO3 = 62
-            # Anorthite0 = 278
+            # Anorthite = 278
             # CaCO3 = 100
 	    # Kaolinite = 258
             # Total Mass = 698
@@ -1025,7 +1026,8 @@ class StokesAdvection():
             f21 = An_frac*self.Da*u0*c0 #reaction rate for An
             f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for carbonic acid
             f31 = calcite_frac*self.Da*u0*c0
-
+            
+	    # Define the variational form for advection, diffusion and reaction equation
 	    F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                     + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		    + dt*f11*vc*dx \
@@ -1035,16 +1037,15 @@ class StokesAdvection():
             r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11)\
                 + cc-c0 + dt*f21 + cc1-c1 - dt*f31
             # Add SUPG stabilisation terms
-            # Default is Sendur 2018, a modification of Codina, 1997 also works
+            # Default is Codina, 1998
             vnorm = sqrt(dot(u, u))
             
             if SUPG==1:
                 #Sendur 2018
                 tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
             elif SUPG==2:
-                #Codina 1997 eq. 114
+                #Codina 1998 eq. 114
                 tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-                #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
             else:
                 alpha_SUPG=self.Pe*vnorm*h/2.0
                 #Brookes and Hughes
@@ -1052,5 +1053,20 @@ class StokesAdvection():
                 tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
             term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
             F += term_SUPG       
+            return lhs(F), rhs(F)
+
+    def stokes_velocity(self,W,mesh,sol_prev,zh=Constant((1.0,0.0,0.0))):
+
+	    h = CellDiameter(mesh)
+	    # TrialFunctions and TestFunctions
+            (u, p) = TrialFunctions(W)
+            (v, q) = TestFunctions(W)
+            zhat=zh
+            
+            # Define the variational form
+	    F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
+           
+            u,p = split(sol_prev)
+           
             return lhs(F), rhs(F)
 

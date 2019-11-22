@@ -275,14 +275,20 @@ while t - T < DOLFIN_EPS:
         c1_out << c01
         c02.rename("[CaCO3]","")
         c2_out << c02
+
         ## Calculate flux
         flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
         flux= np.append(flux,flux1)
         time_array=np.append(time_array,t)
         #print "flux 1: ", flux_1
+
 	## Calculate the mass of CaCO3
 	mass1 = assemble(c02*dx)
 	mass = np.append(mass,mass1)
+
+	## Calculate the production rate of CaCO3 for each time point
+	mass2 = assemble(X2*Da0*c00*c01/(1-phi0)*dx)
+	mass_t = np.append(mass_t,mass2)
 
 	#Calculate the mesh volume
 	one1 = Expression(("1.0"),degree=1)
@@ -304,9 +310,11 @@ while t - T < DOLFIN_EPS:
 flux_file=output_dir + file_name + "_flux.csv"
 np.savetxt(flux_file,(time_array,flux),delimiter=',')
 mass_file=output_dir + file_name + "_mass.csv"
-np.savetxt(flux_file,(time_array,mass),delimiter=',')
+np.savetxt(mass_file,(time_array,mass),delimiter=',')
+mass_t_file=output_dir + file_name + "_mass.csv"
+np.savetxt(mass_t_file,(time_array,mass_t),delimiter=',')
 avg_conc_file=output_dir + file_name + "_avg_conc.csv"
-np.savetxt(flux_file,(time_array,avg_conc),delimiter=',')
+np.savetxt(avg_conc_file,(time_array,avg_conc),delimiter=',')
 ######################
 #
 perm1 = Function(X)

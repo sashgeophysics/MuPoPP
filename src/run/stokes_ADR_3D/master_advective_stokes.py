@@ -205,7 +205,7 @@ while t - T < DOLFIN_EPS:
     # We solve for a and L defined as the linear and bilinear part of F in the module function
     # We provide the mixed function space, mesh, initial conditions, time step size and flow direction
     a,L=stokes.stokes_ADR_precipitation(W,mesh,sol_prev=sol_initial,dt=dt0,zh=Constant((1.0,0.0,0.0)))
-    # Solve for a and L to get the solution, sol which contains all 5 values for the given BCs
+    # Solve for a and L to get the solution, sol which contains all 5 values for the given boundary conditions
     solve(a==L,sol,bc,solver_parameters={'linear_solver':'mumps'}) # MUMPS allows for larger memory usage
     # Set the initial conditions for the next time step as the solution to the previous step 
     sol_initial = sol
@@ -220,46 +220,28 @@ while t - T < DOLFIN_EPS:
 	pressure_out << p
         c00.rename("[H2CO3]","")
         c0_out << c00
-        c01.rename("[Anorthite]","")
+        c01.rename("[An]","")
         c1_out << c01
 	c02.rename("[CaCO3]","")
         c2_out << c02
-	# Calculate H2CO3 input flux, integrated over the inflow from file: 1, using ds defined above
+	# Calculate H2CO3 input flux, integrated over the inflow from file: 1
         flux1 = assemble(c00*dot(u, -n)*ds(1))
-	# Store the input flux at each step, flux1 in the empty array, flux        
-	flux = np.append(flux,flux1)
-
-	# Store the total time at each time step, t in the empty array, time_array        
-	time_array=np.append(time_array,t)
-
+        flux = np.append(flux,flux1) # Store the input flux at each step, flux1 in the empty array, flux
+        time_array=np.append(time_array,t) # Store the total time at each time step, t in the empty array, time_array
 	# Calculate C mass precipitated in the whole domain, dx
         mass1 = assemble(c02*dx)
-	# Store the total precipitated mass at each step, mass1 in the empty array, mass
-        mass = np.append(mass,mass1)
-	
-        # Calculate the average mass precipitated at a given point in the whole domain, dx
+        mass = np.append(mass,mass1) # Store the total precipitated mass at each step, mass1 in the empty array, mass
+    # Calculate the average mass precipitated at a given point in the whole domain, dx
 	avg_mass1 = assemble(c02*dx)/assemble(temp4*dx)
-	# Store the total average mass precipitated at each step, avg_conc1 in the empty array, avg_conc
-	avg_mass = np.append(avg_mass,avg_mass1)
-
+	avg_mass = np.append(avg_mass,avg_mass1) # Store the total average mass precipitated at each step, avg_conc1 in the empty array, avg_conc 
     # Move to the next time step
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     t += dt
     i += 1
     # Write the flux and mass precipitated data out:
-    # Create the .csv file for the input flux measurement
-    flux_file_CO3=output_dir + file_name + "_CO3_influx.csv"
-    # Write the time array as 1 row and the input flux measurement array as another row
-    np.savetxt(flux_file_CO3,(time_array,flux),delimiter=',')
-    # Create the .csv file for the total precipitated mass measurement
-    mass_file_C=output_dir + file_name + "_C_mass_total.csv"
-    # Write the time array as 1 row and the total mass precipitated measurement array as another row
-    np.savetxt(mass_file_C,(time_array,mass),delimiter=',')
-    # Create the .csv file for the average mass precipitated measurement
-    avg_mass_file_C=output_dir + file_name + "_C_mass_avg.csv"
-    # Write the time array as 1 row and the average mass precipitated measurement array as another row
-    np.savetxt(avg_mass_file_C,(time_array,avg_mass),delimiter=',')
+    mass_file=output_dir + "0_non_dimensional_masses.csv"
+    np.savetxt(mass_file,(time_array,flux,mass,avg_mass),delimiter=',')
     
     # Print out the total elapsed time after each time step
     info("Time elapsed %s seconds ---" % (time.time() - start_time))

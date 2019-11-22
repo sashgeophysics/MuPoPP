@@ -250,6 +250,7 @@ dt = dt0
 t = dt
 flux=np.array([])
 mass=np.array([])
+mass_t=np.array([])
 avg_conc=np.array([])
 time_array=np.array([])
 i = 1
@@ -287,7 +288,11 @@ while t - T < DOLFIN_EPS:
 	mass = np.append(mass,mass1)
 
 	## Calculate the production rate of CaCO3 for each time point
-	mass2 = assemble(X2*Da0*c00*c01/(1-phi0)*dx)
+	Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        CaCO3_frac = 100.0/Total_molar_mass
+	mass2 = assemble(CaCO3_frac*Da0*c00*c01/(1-phi0)*dx)
 	mass_t = np.append(mass_t,mass2)
 
 	#Calculate the mesh volume

@@ -19,12 +19,13 @@ parameters["std_out_all_processes"]=False
 #############################
 
 # Parameters for initialising the object of the class (stokes = StokesAdvection)
-Da0  = 1.0e-1
+Da0  = 1.0
 Pe0  = 1.0e-1
 # Initial CO3 2- mass fraction in the system
 c01_init=Expression("0.0",degree=1)
-# Initial anorthite (Ca) mass fractiona in the system
-ca_init=Expression("0.05",degree=1)
+# Initial anorthite (Ca) mass fraction in the system
+ca_init=Expression("0.10",degree=1)
+anorthite = 0.10
 # Initial velocity
 v_init=Expression(("0.0","0.0","0.0"),degree=3)
 
@@ -55,7 +56,7 @@ out_freq0 = 1
 ######################
 
 # Output files for visualisation
-file_name      = "Da_%.1E_Pe_%.1E"%(Da0,Pe0)
+file_name      = "BFS2_An_%3.2f_Da_%.1E_Pe_%.1E"%(anorthite,Da0,Pe0)
 output_dir     = file_name + "_output/"
 extension      = "pvd"
 
@@ -185,10 +186,13 @@ dt = dt0
 t = dt
 
 # Empty arrays to be filled with flux values and time values at each time step
-flux=np.array([])
-mass=np.array([])
+iflux=np.array([])
+volint_conc=np.array([])
+rate_conc=np.array([])
 time_array=np.array([])
-avg_mass=np.array([])
+avg_conc=np.array([])
+volume=np.array([])
+oflux=np.array([])
 
 one = Expression(("1.0"),degree=1)
 temp4 = Function(X)
@@ -220,28 +224,50 @@ while t - T < DOLFIN_EPS:
 	pressure_out << p
         c00.rename("[H2CO3]","")
         c0_out << c00
-        c01.rename("[An]","")
+        c01.rename("[Anorthite]","")
         c1_out << c01
 	c02.rename("[CaCO3]","")
         c2_out << c02
-	# Calculate H2CO3 input flux, integrated over the inflow from file: 1
-        flux1 = assemble(c00*dot(u, -n)*ds(1))
-        flux = np.append(flux,flux1) # Store the input flux at each step, flux1 in the empty array, flux
-        time_array=np.append(time_array,t) # Store the total time at each time step, t in the empty array, time_array
-	# Calculate C mass precipitated in the whole domain, dx
-        mass1 = assemble(c02*dx)
-        mass = np.append(mass,mass1) # Store the total precipitated mass at each step, mass1 in the empty array, mass
-    # Calculate the average mass precipitated at a given point in the whole domain, dx
-	avg_mass1 = assemble(c02*dx)/assemble(temp4*dx)
-	avg_mass = np.append(avg_mass,avg_mass1) # Store the total average mass precipitated at each step, avg_conc1 in the empty array, avg_conc 
+
+	# Calculate H2CO3 concentration input flux, integrated over the inflow from file: 1
+        iflux1 = assemble(c00*dot(u, -n)*ds(1))
+        iflux = np.append(iflux,iflux1) # Store the input flux at each step, iflux1 in the empty array, iflux
+        
+
+	time_array=np.append(time_array,t) # Store the total time at each time step, t in the empty array, time_array
+	
+	# Calculate H2CO3 concentration output flux, integrated over the outflow from file: 2
+        oflux1 = assemble(c00*dot(u, -n)*ds(2))
+        oflux = np.append(oflux,oflux1) # Store the outflow flux at each step, oflux1 in the empty array, oflux
+
+	# Calculate C concentration precipitated in the whole domain, dx during the given time step only (not a cummulative amount)
+        volint_conc1 = assemble(c02*dx)
+        volint_conc = np.append(volint_conc,volint_conc1) # Store the total precipitated concentration for a given step, volint_conc1 in the empty array, volint_conc
+
+	# Calculate the production rate of CaCO3 concentration for each given time step
+	Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        CaCO3_frac = 100.0/Total_molar_mass	
+	rate_conc1 = assemble(CaCO3_frac*Da0*c00*c01*dx)
+	rate_conc = np.append(rate_conc,rate_conc1)	
+
+   	# Calculate the average concentration of precipitate across the whole domain, dx
+	avg_conc1 = assemble(c02*dx)/assemble(temp4*dx)
+	avg_conc = np.append(avg_conc,avg_conc1) # Store the average concentration precipitated at each step, avg_conc1 in the empty array, avg_conc 
+	
+	# Calculate the volume of the domain - will be constant
+	volume1 = assemble(temp4*dx)
+	volume = np.append(volume,volume1)
+
     # Move to the next time step
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     t += dt
     i += 1
-    # Write the flux and mass precipitated data out:
-    mass_file=output_dir + "0_non_dimensional_masses.csv"
-    np.savetxt(mass_file,(time_array,flux,mass,avg_mass),delimiter=',')
+    # Write the flux and concentration data out:
+    mass_file=output_dir + "0_non_dimensional_outputs.csv"
+    np.savetxt(mass_file,(time_array,volume,iflux,oflux,volint_conc,rate_conc,avg_conc),delimiter=',')
     
     # Print out the total elapsed time after each time step
     info("Time elapsed %s seconds ---" % (time.time() - start_time))

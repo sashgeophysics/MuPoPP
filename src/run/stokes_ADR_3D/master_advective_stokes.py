@@ -19,7 +19,7 @@ parameters["std_out_all_processes"]=False
 #############################
 
 # Parameters for initialising the object of the class (stokes = StokesAdvection)
-Da0  = 1.0
+Da0  = 1.0e-1
 Pe0  = 1.0e-1
 # Initial CO3 2- mass fraction in the system
 c01_init=Expression("0.0",degree=1)
@@ -71,7 +71,7 @@ c2_out         = File(output_dir + file_name + "_concentration2." + extension, "
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "BFS2_mesh.xml"
+mesh_fname = "HDF5_sample_mesh.xml"
 extension = ".h5"
 
 # Read in the .xml mesh converted to .h5 format

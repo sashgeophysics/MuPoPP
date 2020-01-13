@@ -56,7 +56,7 @@ out_freq0 = 1
 ######################
 
 # Output files for visualisation
-file_name      = "BFS2_An_%3.2f_Da_%.1E_Pe_%.1E"%(anorthite,Da0,Pe0)
+file_name      = "An_%3.2f_Da_%.1E_Pe_%.1E"%(anorthite,Da0,Pe0)
 output_dir     = file_name + "_output/"
 extension      = "pvd"
 
@@ -71,7 +71,7 @@ c2_out         = File(output_dir + file_name + "_concentration2." + extension, "
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "HDF5_sample_mesh.xml"
+mesh_fname = "hdf5_sample_mesh.xml"
 extension = ".h5"
 
 # Read in the .xml mesh converted to .h5 format

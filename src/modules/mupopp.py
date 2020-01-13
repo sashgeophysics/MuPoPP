@@ -999,7 +999,7 @@ class StokesAdvection():
             u, p, uc, cc, cc1 = split(U)
             zhat=zh
             
-       	    # Define the variational form for velocity and pressure equation
+        # Define the variational form for velocity and pressure equation
 	    F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
             # uc and cc are the trial functions for the next time step
             # uc for comp cc and d comp1 
@@ -1016,7 +1016,7 @@ class StokesAdvection():
             # H2CO3 = 62
             # Anorthite = 278
             # CaCO3 = 100
-	    # Kaolinite = 258
+	   	    # Kaolinite = 258
             # Total Mass = 698
             Total_molar_mass = 698.0
             An_frac = 278.0/Total_molar_mass
@@ -1027,7 +1027,7 @@ class StokesAdvection():
             f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for carbonic acid
             f31 = calcite_frac*self.Da*u0*c0
             
-	    # Define the variational form for advection, diffusion and reaction equation
+		# Define the variational form for advection, diffusion and reaction equation
 	    F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                     + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		    + dt*f11*vc*dx \

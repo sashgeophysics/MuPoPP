@@ -26,17 +26,18 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 0.1
+Da0  = 5.0
 Pe0  = 5.0e2
 alpha0= 1.0e-8   # beta = alpha0/phi
 Fe=0.1
 c01_temp=Expression("0.1",degree=1) #Fe
 cfl0 = 0.1
 phi0 = 0.05
+KK   = (phi0/0.1)**3.67 # KK is the permeability for phi0 since K=k0*phi**n, where n=3.67
 
 # Parameters for iteration
 T0 = 2.0
-dt0 = 1.0e-1
+dt0 = 1.0e-2
 out_freq0 = 1
 
 # Parameters for mesh
@@ -260,7 +261,7 @@ S=SourceTerm(mesh,element=Qc,top_y=ymax)
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
     #a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=darcy.perm,gam_rho=-0.5,rho_0=0.0)
-    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f_source=S,K=1.0)
+    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f_source=S,K=KK)
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01,c02 = sol.split()

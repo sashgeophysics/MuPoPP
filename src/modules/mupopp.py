@@ -1184,7 +1184,7 @@ class CCS():
              zh       : Unit vector in the vertical direction
              SUPG     : A counter for chosing between different SUPG terms
              gam_rho  : The coefficient of concentration in the expression for drho
-             rho_0    : The intercept in the expression for drho
+             
         Output:
              lhs(F)   : Left hand side of the combined bilinear form
              rhs(F)   : Right hand side of the bilinear formulation
@@ -1213,27 +1213,43 @@ class CCS():
         F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx + K*deltarho*inner(v,zhat)*dx
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
         u,p,u0 ,c0,c1 = split(sol_prev)
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
-        # First order reaction term
-        # For chemical reaction
-        # MgCO3+2Fe = C + 3 Fe(2/3)Mg(1/3)O
+        # Second order reaction term
         # Assuming forward reaction controls the rate
-        f21 = self.Da*u0*c0 #reaction rate for Fe
-        #Ratio of molar masses of MgCO3 and 2* Fe
-        fac = 1.0#(24.0+12.0+3.0*16.0)/2.0/56.0
-        f11 = fac*self.Da*u0*c0 #reaction rate for carbonate
-          
-	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+        # For chemical reaction
+        # H2CO3 + Anorthite = CaCO3 + Kaolinite
+        # Total molar mass is calculated from
+        # H2CO3 = 62
+        # Anorthite0 = 278
+        # CaCO3 = 100
+	# Kaolinite = 258
+        # Total Mass = 698
+        Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        CaCO3_frac = 100.0/Total_molar_mass
+
+        f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for H2CO3
+	f21 = An_frac*self.Da*u0*c0 #reaction rate for An
+        f31 = CaCO3_frac*self.Da*u0*c0 #reaction rate for CaCO3
+        
+        F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		+ (dt*f11/self.phi)*vc*dx  - self.beta*dt*f_source*vc*dx \
-                + qc*(cc - c0)*dx + dt*(f21/(1-self.phi))*qc*dx+ qc1*(cc1 - c1)*dx - dt*(f21/(1-self.phi))*qc1*dx
+                + qc*(cc - c0)*dx + dt*(f21/(1-self.phi))*qc*dx \
+		+ qc1*(cc1 - c1)*dx - dt*(f31/(1-self.phi))*qc1*dx
+          
+      
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
-            - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f21/(1.0-self.phi)
+            - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f31/(1.0-self.phi)
+        #r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+        #    - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f21/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))

@@ -1184,7 +1184,7 @@ class CCS():
              zh       : Unit vector in the vertical direction
              SUPG     : A counter for chosing between different SUPG terms
              gam_rho  : The coefficient of concentration in the expression for drho
-             rho_0    : The intercept in the expression for drho
+             
         Output:
              lhs(F)   : Left hand side of the combined bilinear form
              rhs(F)   : Right hand side of the bilinear formulation
@@ -1213,15 +1213,15 @@ class CCS():
         F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx + K*deltarho*inner(v,zhat)*dx
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
         u,p,u0 ,c0,c1 = split(sol_prev)
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
-        # First order reaction term
-        # For chemical reaction
+        # Second order reaction term
+        # Assuming forward reaction controls the rate
         # For chemical reaction
         # H2CO3 + Anorthite = CaCO3 + Kaolinite
-        # Assuming forward reaction controls the rate
         # Total molar mass is calculated from
         # H2CO3 = 62
         # Anorthite0 = 278
@@ -1236,16 +1236,20 @@ class CCS():
         f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for H2CO3
 	f21 = An_frac*self.Da*u0*c0 #reaction rate for An
         f31 = CaCO3_frac*self.Da*u0*c0 #reaction rate for CaCO3
-          
-	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+        
+        F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
 		+ (dt*f11/self.phi)*vc*dx  - self.beta*dt*f_source*vc*dx \
                 + qc*(cc - c0)*dx + dt*(f21/(1-self.phi))*qc*dx \
 		+ qc1*(cc1 - c1)*dx - dt*(f31/(1-self.phi))*qc1*dx
+          
+      
         # Residual
         h = CellDiameter(mesh)
         r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
             - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f31/(1.0-self.phi)
+        #r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+        #    - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f21/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))

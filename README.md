@@ -1,4 +1,4 @@
-# MuPoPP (Multiphase Porous flow and Physical Properties) v 1.2.1
+# MuPoPP (Multiphase Porous flow and Physical Properties) v 1.2.2
 
 This module contains functions for solving mass and moemntum conservation
 equations for single phase darcy flow, two-phase darcy flow, compaction, 
@@ -89,49 +89,46 @@ This module contains a number of classes corresponding to different PDE problems
 
 # Class StokesAdvection (To be updated)
 
-  	  
+  			      
     This class solves for a simple advection-diffusion
     equation for a single or multicomponent flow, the governing
     PDEs for Stokes flow are:        
     div(u) = 0                                                          (1)
-    -grad(p)+mu*div(grad(u)) +drho*g =0                                 (2)
-    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
-    and  
-    dc1/dt = - Da*c0*c1/phi                                             (4)
-    where c0 and c1 are concentrations of the reactants in the liquid
-    and solid, u is the fluid velocity, p is pressure, k is permeability
-    drho=difference between liquid and solid densities, zhat is a unit
-    vecotr in vertically upward direction, Pe is Peclet number, Da is
-    the Dahmkoler number, beta is source strength, f is a function
-    for lateral variations in source of c0, and phi is the constant porosity
-
+    -grad(p)+div(grad(u)) = 0                                        (2)
+    
+    This code is useful for reactive Stokes flow through a known geometry. The
+    sample file uses a simple geometry file, but it can also be used to read
+    in 3D microtomographic images of connected pore space in natural reservoirs.
+    
+    The function stokes_ADR_precipitation carries out the additional reactions
+    for a three component system, following the reaction
+    An + H2CO3 = Ka + CaCO3
+ 
     On initiation of the class:
               the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
               the timestep dt and CFL criterion are also loaded to default
               values.
     For the remaining functions, see the docstring of each individual function
     for help.
+    
 
 # Class CCS
 
     This class solves for a simple advection-diffusion
     equation for a single or multicomponent flow, the governing
     PDEs for Darcy flow are:        
-        div(u) = 0                                                 (1)
-        phi*u = -k*(grad(p)+rho*zhat)                              (2)
-        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1*/phi 
-        + beta*f                                                   (3)
-        and  
-        dc1/dt = - fac1*Da*c0*c1/(1-phi)                           (4)
-        dc2/dt = fac2*Da*c0*c1/(1-phi)                             (5)
-        where 
-        rho = 1 + gam_rho c0                                       (6)
-        where c0 and c1 are concentrations of the reactants in the liquid
-        and solid, u is the fluid velocity, p is pressure, k is permeability
-        drho=difference between liquid and solid densities, zhat is a unit
-        vecotr in vertically upward direction, Pe is Peclet number, Da is
-        the Dahmkoler number, beta is source strength, f is a function
-        for lateral variations in source of c0, and phi is the constant porosity
+    div(u) = 0                                                          (1)
+    phi*u = -k*(grad(p)-drho*zhat)                                      (2)
+    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+    dc1/dt = -fac1*Da*c0*c1/phi                                             (4)
+    and 
+    dc2/dt = fac2*Da*c0*c1/phi
+    where c0 and c1 are concentrations of the reactants in the liquid
+    and solid, u is the fluid velocity, p is pressure, k is permeability
+    drho=difference between liquid and solid densities, zhat is a unit
+    vecotr in vertically upward direction, Pe is Peclet number, Da is
+    the Dahmkoler number, beta is source strength, f is a function
+    for lateral variations in source of c0, and phi is the constant porosity.
     c2 is the concentration of solid product, fac1 and fac2 are factors
     to convert from volume fraction to mass fraction. The underlying chemical
     reaction is

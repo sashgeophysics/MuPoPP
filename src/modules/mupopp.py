@@ -968,23 +968,16 @@ class StokesAdvection():
     equation for a single or multicomponent flow, the governing
     PDEs for Stokes flow are:        
     div(u) = 0                                                          (1)
-    -grad(p)+mu*div(grad(u)) = 0                                        (2)
+    -grad(p)+div(grad(u)) = 0                                        (2)
     
     This code is useful for reactive Stokes flow through a known geometry. The
     sample file uses a simple geometry file, but it can also be used to read
     in 3D microtomographic images of connected pore space in natural reservoirs.
     
-    
-    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
-    and  
-    dc1/dt = - Da*c0*c1/phi                                             (4)
-    where c0 and c1 are concentrations of the reactants in the liquid
-    and solid, u is the fluid velocity, p is pressure, k is permeability
-    drho=difference between liquid and solid densities, zhat is a unit
-    vecotr in vertically upward direction, Pe is Peclet number, Da is
-    the Dahmkoler number, beta is source strength, f is a function
-    for lateral variations in source of c0, and phi is the constant porosity
-
+    The function stokes_ADR_precipitation carries out the additional reactions
+    for a three component system, following the reaction
+    An + H2CO3 = Ka + CaCO3
+ 
     On initiation of the class:
               the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
               the timestep dt and CFL criterion are also loaded to default
@@ -1002,7 +995,43 @@ class StokesAdvection():
         self.dt=dt
         self.alpha=alpha
     def stokes_ADR_precipitation(self,W,mesh,sol_prev,dt,SUPG=2):
+        """     
+        This function returns the bilinear form for the system of PDES governing
+        an advection-reaction-two-component flow, the governing
+        PDEs for Stokes flow are:        
+        div(u) = 0                                                 (1)
+        laplacian(u) - grad(p)                                     (2)
+        And the advection diffusion reaction equations are
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1*    (3)
+        and  
+        dc1/dt = - fac1*Da*c0*c1                                   (4)
+        dc2/dt = fac2*Da*c0*c1                                     (5)
         
+        where u is velocity, p is pressure, Pe is the PEclet number
+        Da is the Dahmkoehler number,  and c0 is the concentration of the reacting
+        solvent in the fluid and fac1 and fac2 are factors
+        to convert from volume fraction to mass fraction. The underlying chemical
+        reaction is
+        An + H2CO3 = Ka + CaCO3
+        c0 is the consentration of H2CO3 in the liquid
+        c1 is the concentration of An in the solid
+        c2 is the concentration of CaCO3 in the solid
+        Input:
+             W        : Mixed function space containing velocity, pressure and three
+                        concentrations
+             mesh     : Fenics mesh on which W is defined
+             sol_prev : All unknowns from the previous time step
+             dt       : time step
+             SUPG     : A counter for chosing between different SUPG terms
+             
+        Output:
+             lhs(F)   : Left hand side of the combined bilinear form
+             rhs(F)   : Right hand side of the bilinear formulation
+        The bilinear form uses Crank-Nicholson time stepping and gives 
+        several options for SUPG stabilization. 
+        We recommend using Sendur 2018 formulation
+        for the SUPG term.
+        """
 	h = CellDiameter(mesh)
 	
 	# TrialFunctions and TestFunctions

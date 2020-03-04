@@ -11,9 +11,11 @@ module functions. The multiphase physical properties are calculated by the
 module mumap_fwd. See details for these calculations in the docs for mumap_fwd.
 
 Copyright Saswata Hier-Majumder, January 2018
-
+Modified by Joe Sun and Ryan Payton. 
 Works with Dolfin 2017.1.0
 Python 2.7
+Release 1.2.2, March 4, 2020
+
 
 #Classes
 
@@ -87,7 +89,7 @@ This module contains a number of classes corresponding to different PDE problems
     For the remaining functions, see the docstring of each individual function
     for help.
 
-# Class StokesAdvection (To be updated)
+# Class StokesAdvection 
 
   			      
     This class solves for a simple advection-diffusion

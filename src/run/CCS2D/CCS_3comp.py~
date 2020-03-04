@@ -26,13 +26,13 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 0.1
-Pe0  = 5.0e2
-alpha0= 1.0e-8   # beta = alpha0/phi
+Da0  = 1.0
+Pe0  = 100.0
+alpha0= 0.001   # beta = alpha0/phi
 Fe=0.1
-c01_temp=Expression("0.1",degree=1) #Fe
+c01_temp=Expression("0.01",degree=1) #Fe
 cfl0 = 0.1
-phi0 = 0.05
+phi0 = 0.1
 beta=alpha0/phi0
 # Parameters for iteration
 T0 = 2.0
@@ -40,11 +40,11 @@ dt0 = 1.0e-1
 out_freq0 = 1
 
 # Parameters for mesh
-mesh_density = 80
+mesh_density = 100
 
 # Output files for quick visualisation
 
-file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0)
+file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -53,13 +53,12 @@ velocity_out   = File(output_dir + file_name + "_velocity." + extension, "compre
 pressure_out   = File(output_dir + file_name + "_pressure." + extension, "compressed")
 c0_out         = File(output_dir + file_name + "_concentration0." + extension, "compressed")
 c1_out         = File(output_dir + file_name + "_concentration1." + extension, "compressed")
-c2_out         = File(output_dir + file_name + "_concentration2." + extension, "compressed")
 initial_c0_out = File(output_dir + file_name + "_initial_c0." + extension, "compressed")
 initial_c1_out = File(output_dir + file_name + "_initial_c1." + extension, "compressed")
 porosity_out   = File(output_dir + file_name + "_porosity." + extension, "compressed")
 perm_out       = File(output_dir + file_name + "_permeability." + extension, "compressed")
 # Output parameters
-parname = "output/" + "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0) + "_parameters.out"
+parname = "output/" + "Da_%3.2f_Pe_%.1E_beta_%3.2f_Fe_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0) + "_parameters.out"
 def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname):
     """This function saves the output of iterations"""
     file=open(fname,"a")
@@ -209,33 +208,26 @@ Q = FiniteElement("Lagrange", mesh.ufl_cell(), 1)
 #Concentration
 Qc = FiniteElement("Lagrange",mesh.ufl_cell(), 1)
 # Make a mixed space
-W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc,Qc]), constrained_domain=pbc)
+W = dolfin.FunctionSpace(mesh, MixedElement([V,Q,Qc,Qc]), constrained_domain=pbc)
 X  = FunctionSpace(mesh,"CG",1, constrained_domain=pbc)
 # Define boundary conditions
 G=BoundarySource(mesh,element=V)
-u0=Constant((0.0,-0.5))
+u0=Constant((0.0,-1.0))
 #bc1 = DirichletBC(W.sub(0),G, top)
-#Constant velocity at the top boundary
 bc1 = DirichletBC(W.sub(0),u0, top)
-#Constant H2CO3 concentration at the top boundary
 bc2 = DirichletBC(W.sub(2),Constant(0.1), top)
-#Zero velocity at the bottom boundary
-#u_bot=Constant((0.0,0.0))
-#bc3 = DirichletBC(W.sub(0),u_bot, bottom)
-bc  = [bc1,bc2]#,bc3]
+bc  = [bc1]#,bc2]
 
 ###########################
 ## Create an object
 ###########################
-#darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
-darcy = CCS(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
+darcy = DarcyAdvection(Da=Da0,phi=phi0,Pe=Pe0,alpha=alpha0,cfl=cfl0)
 # Define initial conditions
 sol_0 = Function(W)
 temp2 = Function(X)
 temp2.interpolate(c01_temp)
 c01 = temp2
 assign(sol_0.sub(3), c01)
-
 ##########################################
 ## Define permeability fields
 ##########################################
@@ -256,23 +248,21 @@ S=SourceTerm(mesh,element=Qc,top_y=ymax)
 
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
-    #a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=darcy.perm,gam_rho=-0.5,rho_0=0.0)
-    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f_source=S,K=1.0)
+    a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=darcy.perm,gam_rho=-0.5,rho_0=0.0)
+    #a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,gam_rho=-0.5,rho_0=0.0)
     solve(a==L,sol,bc)
     sol_0 = sol
-    u0,p0,c00,c01,c02 = sol.split()
+    u0,p0,c00,c01 = sol.split()
 
     if i % out_freq == 0:
 	u0.rename("velocity","")
 	velocity_out << u0
 	p0.rename("pressure","")
 	pressure_out << p0
-        c00.rename("[H2CO3]","")
+        c00.rename("[CO3]","")
         c0_out << c00
-        c01.rename("[An]","")
+        c01.rename("[Fe]","")
         c1_out << c01
-        c02.rename("[CaCO3]","")
-        c2_out << c02
         ## Calculate flux
         flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
         flux= np.append(flux,flux1)

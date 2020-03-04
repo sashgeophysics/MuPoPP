@@ -26,17 +26,18 @@ parameters["std_out_all_processes"]=False
 ####################################
 
 # Parameters for initializing the object
-Da0  = 0.1
+Da0  = 5.0
 Pe0  = 5.0e2
 alpha0= 1.0e-8   # beta = alpha0/phi
 Fe=0.1
 c01_temp=Expression("0.1",degree=1) #Fe
 cfl0 = 0.1
 phi0 = 0.05
-beta=alpha0/phi0
+KK   = (phi0/0.1)**3.67 # KK is the permeability for phi0 since K=k0*phi**n, where n=3.67
+
 # Parameters for iteration
 T0 = 2.0
-dt0 = 1.0e-1
+dt0 = 1.0e-2
 out_freq0 = 1
 
 # Parameters for mesh
@@ -44,7 +45,7 @@ mesh_density = 80
 
 # Output files for quick visualisation
 
-file_name       =  "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0)
+file_name      =  "Da_%3.2f_Pe_%.1E_alpha_%.1E_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,alpha0,Fe,phi0)
 output_dir     =  "output/"
 
 extension      = "pvd"   # "xdmf" or "pvd"
@@ -59,7 +60,7 @@ initial_c1_out = File(output_dir + file_name + "_initial_c1." + extension, "comp
 porosity_out   = File(output_dir + file_name + "_porosity." + extension, "compressed")
 perm_out       = File(output_dir + file_name + "_permeability." + extension, "compressed")
 # Output parameters
-parname = "output/" + "Da_%3.2f_Pe_%.1E_beta_%3.2f_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,beta,Fe,phi0) + "_parameters.out"
+parname = "output/" + "Da_%3.2f_Pe_%.1E_alpha_%.1E_An_%3.2f_porosity_%3.2f"%(Da0,Pe0,alpha0,Fe,phi0) + "_parameters.out"
 def output_write(mesh_density,Da,phi,Pe,alpha,cfl,fname):
     """This function saves the output of iterations"""
     file=open(fname,"a")
@@ -249,6 +250,9 @@ T = T0
 dt = dt0
 t = dt
 flux=np.array([])
+mass=np.array([])
+mass_t=np.array([])
+avg_conc=np.array([])
 time_array=np.array([])
 i = 1
 out_freq = out_freq0
@@ -257,7 +261,7 @@ S=SourceTerm(mesh,element=Qc,top_y=ymax)
 while t - T < DOLFIN_EPS:
     # Update the concentration of component 0
     #a,L = darcy.advection_diffusion_two_component(W,mesh,sol_0,dt,f1=S,K=darcy.perm,gam_rho=-0.5,rho_0=0.0)
-    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f_source=S,K=1.0)
+    a,L = darcy.advection_diffusion_three_component(W,mesh,sol_0,dt,f_source=S,K=KK)
     solve(a==L,sol,bc)
     sol_0 = sol
     u0,p0,c00,c01,c02 = sol.split()
@@ -273,20 +277,50 @@ while t - T < DOLFIN_EPS:
         c1_out << c01
         c02.rename("[CaCO3]","")
         c2_out << c02
+
         ## Calculate flux
         flux1 = assemble(c00*phi0*dot(u0, n)*ds(1))
         flux= np.append(flux,flux1)
         time_array=np.append(time_array,t)
         #print "flux 1: ", flux_1
+
+	## Calculate the mass of CaCO3
+	mass1 = assemble(c02*dx)
+	mass = np.append(mass,mass1)
+
+	## Calculate the production rate of CaCO3 for each time point
+	Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        CaCO3_frac = 100.0/Total_molar_mass
+	mass2 = assemble(CaCO3_frac*Da0*c00*c01/(1-phi0)*dx)
+	mass_t = np.append(mass_t,mass2)
+
+	#Calculate the mesh volume
+	one1 = Expression(("1.0"),degree=1)
+	one = Function(X)
+	one.interpolate(one1)
+	V_mesh = assemble(one*dx) #mesh volume
+
+	#Calculate the average concentration of CaCO3 over volume
+	avg_conc1 = assemble(c02*(1.0-phi0)*dx)/V_mesh
+	avg_conc = np.append(avg_conc,avg_conc1)
+	
     # Move to next interval and adjust boundary condition
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
     #print 'iteration',i
     t += dt
     i += 1
+
 flux_file=output_dir + file_name + "_flux.csv"
 np.savetxt(flux_file,(time_array,flux),delimiter=',')
-
+mass_file=output_dir + file_name + "_mass.csv"
+np.savetxt(mass_file,(time_array,mass),delimiter=',')
+mass_t_file=output_dir + file_name + "_mass_t.csv"
+np.savetxt(mass_t_file,(time_array,mass_t),delimiter=',')
+avg_conc_file=output_dir + file_name + "_avg_conc.csv"
+np.savetxt(avg_conc_file,(time_array,avg_conc),delimiter=',')
 ######################
 #
 perm1 = Function(X)

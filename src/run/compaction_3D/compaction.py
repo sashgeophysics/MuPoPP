@@ -70,7 +70,7 @@ class BottomBC(Expression):
         self.mesh = mesh
         self.element=element
     def eval(self, values, x):
-        g = 0.05*(exp(-x[0]*x[0]-x[1]*x[1])/0.05)
+        g = exp((-x[0]*x[0]-x[1]*x[1])/0.5)
         values[0] = 0.0
         values[1] = 0.0
 	values[2] = g
@@ -84,7 +84,7 @@ class BottomBC(Expression):
 # Lengths of the cube
 Lx     =  4.0
 Ly     =  4.0
-Lz     =  8.0
+Lz     =  2.0
 x0_min = -Lx/2
 x0_max =  Lx/2
 x1_min = -Ly/2
@@ -93,9 +93,9 @@ x2_min =  0.0
 x2_max =  Lz
 # Mesh density in the three directions
 # Change the numberfor a higher mesh density
-n0     =  6 
-n1     =  6 
-n2     =  12
+n0     =  12 
+n1     =  12 
+n2     =  6
 
 
 # This following bit is a flag for working between different versions
@@ -199,7 +199,7 @@ dt = Expression("dt", dt=0.0,degree=1)
 # Initial  condition and known functions
 ######################################################################
 # Create an initial melt distribution
-phi_init = Expression("0.05*(exp(-x[0]*x[0]-x[1]*x[1]-(x[2]-3.0)*(x[2]-3.0))/0.5)+0.1",degree=2)
+phi_init = Expression("0.05*(exp((-x[0]*x[0]-x[1]*x[1]-(x[2]-0.5)*(x[2]-0.5))/0.5))+0.1",degree=2)
 phi0.interpolate(phi_init)
 initial_porosity_out << phi0
 

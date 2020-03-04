@@ -9,9 +9,10 @@ module functions. The multiphase physical properties are calculated by the
 module mumap_fwd. See details for these calculations in the docs for mumap_fwd.
 
 Copyright Saswata Hier-Majumder, January 2018
-Modified by Joe Sun, February 2019
+Modified by Joe Sun and Ryan Payton. 
 Works with Dolfin 2017.1.0
 Python 2.7
+Release 1.2.2
 """
 from dolfin import *
 import numpy as np
@@ -686,8 +687,6 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + u)
 
-        
-
         # First order reaction term
         f = self.Da*u0*c0
         # the source term for c0 f1=[0,1]
@@ -969,7 +968,13 @@ class StokesAdvection():
     equation for a single or multicomponent flow, the governing
     PDEs for Stokes flow are:        
     div(u) = 0                                                          (1)
-    -grad(p)+mu*div(grad(u)) +drho*g =0                                 (2)
+    -grad(p)+mu*div(grad(u)) = 0                                        (2)
+    
+    This code is useful for reactive Stokes flow through a known geometry. The
+    sample file uses a simple geometry file, but it can also be used to read
+    in 3D microtomographic images of connected pore space in natural reservoirs.
+    
+    
     dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
     and  
     dc1/dt = - Da*c0*c1/phi                                             (4)
@@ -996,115 +1001,70 @@ class StokesAdvection():
         self.cfl=cfl
         self.dt=dt
         self.alpha=alpha
-    def stokes(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((1.0,0.0,0.0))):
-        """ This function substitutes in stokes flow instead of darcy flow
-            for use in pore space flow modelling where the solid phase has been
-            removed, making a phi value redundant            
-        """
+    def stokes_ADR_precipitation(self,W,mesh,sol_prev,dt,SUPG=2):
+        
 	h = CellDiameter(mesh)
-
+	
 	# TrialFunctions and TestFunctions
         U = TrialFunction(W)
-        (v, q, vc, qc) = TestFunctions(W)
-        u, p, uc, cc   = split(U)
+        (v, q, vc, qc, qc1) = TestFunctions(W)
+        u, p, uc, cc, cc1 = split(U)
         
-        zhat=zh
-
-        # Define the variational form
-	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per
-        # the darcy_advection_rho_posi_random function 		through the 1.0+uc term 
-
+        
+        # Define the variational form for velocity and pressure equation
+	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
-        u,p,u0 ,c0 = split(sol_prev)
-
+        # u0 (component 0), c0(component 1), and c1(component 3)
+        # are known values from the previous time step
+        u,p,u0,c0,c1 = split(sol_prev)
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
-
         # First order reaction term
-        f = self.Da*u0*c0
-
+        # For chemical reaction
+        # H2CO3 + Anorthite = CaCO3 + Kaolinite
+        # Assuming forward reaction controls the rate
+        # Total molar mass is calculated from
+        # H2CO3 = 62
+        # Anorthite = 278
+        # CaCO3 = 100
+	# Kaolinite = 258
+        # Total Mass = 698
+        Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        calcite_frac = 100.0/Total_molar_mass
+        
+        f21 = An_frac*self.Da*u0*c0 #reaction rate for An
+        f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for carbonic acid
+        f31 = calcite_frac*self.Da*u0*c0
+        
+	# Define the variational form for advection, diffusion and reaction equation
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
-                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f*vc*dx  - self.alpha*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f*qc*dx
+                                   + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		                   + dt*f11*vc*dx \
+                                   + qc*(cc - c0)*dx + dt*f21*qc*dx + qc1*(cc1 - c1)*dx - dt*f31*qc1*dx
         # Residual
         h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
-            - self.alpha*dt*f1 + cc-c0 + dt*f
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11)\
+            + cc-c0 + dt*f21 + cc1-c1 - dt*f31
         # Add SUPG stabilisation terms
+        # Default is Codina, 1998
         vnorm = sqrt(dot(u, u))
         
-
-        #alpha_SUPG=self.Pe*vnorm*h/2.0
-        #Brookes and Hughes
-        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
-        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
-        #Sendur 2018
-        #####tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
-        #Codina 1997 eq. 114
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        if SUPG==1:
+            #Sendur 2018
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        elif SUPG==2:
+            #Codina 1998 eq. 114
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        else:
+            alpha_SUPG=self.Pe*vnorm*h/2.0
+            #Brookes and Hughes
+            coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+            tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
-        F += term_SUPG
-        
-        return lhs(F), rhs(F)
-
-    def stokes_no_alpha(self,W,mesh,sol_prev,dt,K=0.1,zh=Constant((1.0,0.0,0.0))):
-        """ This function substitutes in stokes flow instead of darcy flow
-            for use in pore space flow modelling where the solid phase has been
-            removed, making a phi value redundant            
-        """
-	h = CellDiameter(mesh)
-
-	# TrialFunctions and TestFunctions
-        U = TrialFunction(W)
-        (v, q, vc, qc) = TestFunctions(W)
-        u, p, uc, cc   = split(U)
-        
-        zhat=zh
-
-        # Define the variational form
-	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random function    		through the 1.0+uc term 
-
-        # uc and cc are the trial functions for the next time step
-        # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
-        u,p,u0 ,c0 = split(sol_prev)
-
-        # Mid-point solution for comp 0
-        u_mid = 0.5*(u0 + uc)
-
-        # First order reaction term
-        f = self.Da*u0*c0
-
-	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
-                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f*vc*dx\
-                + qc*(cc - c0)*dx + dt*f*qc*dx
-        # Residual
-        h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
-            + cc-c0 + dt*f
-        # Add SUPG stabilisation terms
-        vnorm = sqrt(dot(u, u))
-        
-
-        #alpha_SUPG=self.Pe*vnorm*h/2.0
-        #Brookes and Hughes
-        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
-        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
-        #Sendur 2018
-        #####tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
-        #Codina 1997 eq. 114
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
-        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
-        F += term_SUPG
-        
+        F += term_SUPG       
         return lhs(F), rhs(F)
 ###################################################################
 ### Advection diffusion equation in Darcy flow

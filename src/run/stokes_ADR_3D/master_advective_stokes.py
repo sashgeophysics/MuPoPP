@@ -3,7 +3,7 @@ from mshr import*
 import numpy, scipy, sys, math
 #import matplotlib.pyplot as plt
 #Add the path to Mupopp module to the code
-#sys.path.insert(0, '../../modules/')
+sys.path.insert(0, '../../modules/')
 
 from mupopp import *
 
@@ -45,11 +45,11 @@ v_init=Expression(("0.0","0.0","0.0"),degree=3)
 # seconds/pi * 10e7
 
 # Total simulation time
-T0 = 100000
+T0 = 40000
 # Time step size
 dt0 = 100
 # Every n timesteps data will be output
-out_freq0 = 1
+out_freq0 = 50
 
 ######################
 ##   Create Files   ##
@@ -71,7 +71,7 @@ c2_out         = File(output_dir + file_name + "_concentration2." + extension, "
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "hdf5_sample_mesh.xml"
+mesh_fname = "sample_mesh.xml"
 extension = ".h5"
 
 # Read in the .xml mesh converted to .h5 format
@@ -208,7 +208,7 @@ out_freq = out_freq0
 while t - T < DOLFIN_EPS:
     # We solve for a and L defined as the linear and bilinear part of F in the module function
     # We provide the mixed function space, mesh, initial conditions, time step size and flow direction
-    a,L=stokes.stokes_ADR_precipitation(W,mesh,sol_prev=sol_initial,dt=dt0,zh=Constant((1.0,0.0,0.0)))
+    a,L=stokes.stokes_ADR_precipitation(W,mesh,sol_prev=sol_initial,dt=dt0)
     # Solve for a and L to get the solution, sol which contains all 5 values for the given boundary conditions
     solve(a==L,sol,bc,solver_parameters={'linear_solver':'mumps'}) # MUMPS allows for larger memory usage
     # Set the initial conditions for the next time step as the solution to the previous step 

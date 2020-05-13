@@ -7,6 +7,59 @@ sys.path.insert(0, '../../modules/')
 
 from mupopp import *
 
+def load_mesh(mesh_fname,extension, Lmax=1.0e6):
+    """This function loads the mesh from a file
+    Lmax is the DIMENSIONAL chracteristic length by which the
+    mesh will be normalized. Assuming the mesh is created in microns, the default
+    value is set at 1.0e6 micron, 1 m. Change this value for experimenting with
+    the length scale."""
+    # Read in the .xml mesh converted to .h5 format
+    mesh = Mesh()
+    hdf = HDF5File(mesh.mpi_comm(), "hdf5_" + mesh_fname + extension, "r")
+    hdf.read(mesh, "/mesh", False)
+    
+    # Read in the boundaries, called as 'boundaries' to allow for specifying 1, 2, 3 as
+    # inflow, outflow, walls in the below boundary conditions
+    boundaries = MeshFunction("size_t", mesh, mesh.topology().dim()-1)
+    hdf.read(boundaries, "/boundaries")
+    
+    # Modify mesh scaling, making x axis -1 to +1 and Y and Z scaled using the same factor
+    xmin = mesh.coordinates()[:,0].min()
+    xmax = mesh.coordinates()[:,0].max()
+    ymin = mesh.coordinates()[:,1].min()
+    ymax = mesh.coordinates()[:,1].max()
+    zmin = mesh.coordinates()[:,2].min()
+    zmax = mesh.coordinates()[:,2].max()
+    
+    print 'X min =',xmin,', X max =',xmax,', Y min =',ymin,', Y max =',ymax,', Z min =',zmin,', Z max =',zmax,'.'
+    
+    coords = mesh.coordinates()
+
+    scaling_factor_x = Lmax#xmax
+    coords[:, 0] /= scaling_factor_x
+    
+    #scaling_factor_y = ymax
+    coords[:, 1] /= scaling_factor_x
+    
+    #scaling_factor_z = zmax
+    coords[:, 2] /= scaling_factor_x
+    
+    mesh.bounding_box_tree().build(mesh)
+    
+    xmin = mesh.coordinates()[:,0].min()
+    xmax = mesh.coordinates()[:,0].max()
+    ymin = mesh.coordinates()[:,1].min()
+    ymax = mesh.coordinates()[:,1].max()
+    zmin = mesh.coordinates()[:,2].min()
+    zmax = mesh.coordinates()[:,2].max()
+    
+    print 'After rescaling, X min =',xmin,', X max =',xmax,', Y min =',ymin,', Y max =',ymax,', Z min =',zmin,', Z max =',zmax,'.'
+
+    # Define ds (2D surface for flux) and n (unit vector normal to a plane) for calculated input carbon flux
+    ds = Measure("ds", domain = mesh, subdomain_data = boundaries)
+    n = FacetNormal(mesh)
+    return(mesh,boundaries)
+
 # Add a reference start time for time keeping
 import time
 start_time = time.time()
@@ -24,8 +77,8 @@ Pe0  = 1.0e-1
 # Initial CO3 2- mass fraction in the system
 c01_init=Expression("0.0",degree=1)
 # Initial anorthite (Ca) mass fraction in the system
-ca_init=Expression("0.10",degree=1)
-anorthite = 0.10
+ca_init=Expression("0.3",degree=1)
+anorthite = 0.3
 # Initial velocity
 v_init=Expression(("0.0","0.0","0.0"),degree=3)
 
@@ -45,7 +98,7 @@ v_init=Expression(("0.0","0.0","0.0"),degree=3)
 # seconds/pi * 10e7
 
 # Total simulation time
-T0 = 40000
+T0 = 100000
 # Time step size
 dt0 = 100
 # Every n timesteps data will be output
@@ -56,7 +109,7 @@ out_freq0 = 50
 ######################
 
 # Output files for visualisation
-file_name      = "An_%3.2f_Da_%.1E_Pe_%.1E"%(anorthite,Da0,Pe0)
+file_name      = "Scale_test_BFS2_An_%3.2f_Da_%.1E_Pe_%.1E"%(anorthite,Da0,Pe0)
 output_dir     = file_name + "_output/"
 extension      = "pvd"
 
@@ -71,22 +124,11 @@ c2_out         = File(output_dir + file_name + "_concentration2." + extension, "
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "sample_mesh.xml"
+mesh_fname = "sample_mesh.xml" #"BFS2_mesh.xml"
 extension = ".h5"
 
-# Read in the .xml mesh converted to .h5 format
-mesh = Mesh()
-hdf = HDF5File(mesh.mpi_comm(), "hdf5_" + mesh_fname + extension, "r")
-hdf.read(mesh, "/mesh", False)
+mesh,boundaries=load_mesh(mesh_fname,extension)
 
-# Read in the boundaries, called as 'boundaries' to allow for specifying 1, 2, 3 as
-# inflow, outflow, walls in the below boundary conditions
-boundaries = MeshFunction("size_t", mesh, mesh.topology().dim()-1)
-hdf.read(boundaries, "/boundaries")
-
-# Define ds (2D surface for flux) and n (unit vector normal to a plane) for calculated input carbon flux
-ds = Measure("ds", domain = mesh, subdomain_data = boundaries)
-n = FacetNormal(mesh)
 
 # Create FunctionSpaces for each unknown to be calculated in
 
@@ -145,7 +187,7 @@ temp1.interpolate(c01_init)
 # As there is the same initial amount of carbonic acid (c01) and precipitated C (c02)
 # in the system we use the c01_init function and assign it to both
 c01 = temp1
-c02 = temp1
+c02 = temp1 #both values are zero
 
 # Define a function in the function space Z and use the 
 # predefined expression for v_init as the function
@@ -230,19 +272,15 @@ while t - T < DOLFIN_EPS:
         c2_out << c02
 
 	# Calculate H2CO3 concentration input flux, integrated over the inflow from file: 1
-        #iflux1 = assemble(c00*dot(u, -n)*ds(1))
-        #Replaced -n with unit normal for flux calculation
-        iflux1 = assemble(c00*dot(u, unitNormal)*ds(1))
+        iflux1 = assemble(c00*dot(u, -n)*ds(1))
         iflux = np.append(iflux,iflux1) # Store the input flux at each step, iflux1 in the empty array, iflux
         
 
 	time_array=np.append(time_array,t) # Store the total time at each time step, t in the empty array, time_array
 	
 	# Calculate H2CO3 concentration output flux, integrated over the outflow from file: 2
-        #oflux1 = assemble(c00*dot(u, -n)*ds(2))
-        oflux1 = assemble(c00*dot(u, unitNormal)*ds(2))
+        oflux1 = assemble(c00*dot(u, -n)*ds(2))
         oflux = np.append(oflux,oflux1) # Store the outflow flux at each step, oflux1 in the empty array, oflux
-        
 
 	# Calculate C concentration precipitated in the whole domain, dx during the given time step only (not a cummulative amount)
         volint_conc1 = assemble(c02*dx)
@@ -267,8 +305,6 @@ while t - T < DOLFIN_EPS:
     # Move to the next time step
     info("time t =%g\n" %t)
     info("iteration =%g\n" %i)
-    info("influx= %g \n" %iflux1)
-    
     t += dt
     i += 1
     # Write the flux and concentration data out:

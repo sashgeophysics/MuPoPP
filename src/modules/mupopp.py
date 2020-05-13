@@ -1093,7 +1093,9 @@ class StokesAdvection():
             coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
             tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
-        F += term_SUPG       
+        F += term_SUPG
+
+       
         return lhs(F), rhs(F)
 ###################################################################
 ### Advection diffusion equation in Darcy flow

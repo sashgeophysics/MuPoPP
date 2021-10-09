@@ -108,7 +108,7 @@ c2_out         = File(output_dir + file_name + "_concentration2." + extension, "
 ###########################################
 
 # Set file names for importing mesh files in .h5 format
-mesh_fname = "new_sample_mesh.xml"
+mesh_fname = "sample_mesh.xml"
 extension = ".h5"
 
 mesh,boundaries=load_mesh(mesh_fname,extension)

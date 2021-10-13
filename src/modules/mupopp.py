@@ -9,9 +9,10 @@ module functions. The multiphase physical properties are calculated by the
 module mumap_fwd. See details for these calculations in the docs for mumap_fwd.
 
 Copyright Saswata Hier-Majumder, January 2018
-Modified by Joe Sun, February 2019
+Modified by Joe Sun and Ryan Payton. 
 Works with Dolfin 2017.1.0
 Python 2.7
+Release 1.2.2
 """
 from dolfin import *
 import numpy as np
@@ -590,7 +591,7 @@ class DarcyAdvection():
         self.cfl=cfl
         self.dt=dt
         self.alpha=alpha
-        
+        self.beta=alpha/phi
     def darcy_bilinear(self,W,mesh,K=0.1,zh=Constant((0.0,1.0)),TwodTrue=True):
         """
         This function creates the bilinear form of the Darcy flow equations:
@@ -686,8 +687,6 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + u)
 
-        
-
         # First order reaction term
         f = self.Da*u0*c0
         # the source term for c0 f1=[0,1]
@@ -749,18 +748,18 @@ class DarcyAdvection():
         F += term_SUPG
         return lhs(F), rhs(F)
     
-    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((0.0,1.0)),SUPG=1):
+    def advection_diffusion_two_component(self,W,mesh,sol_prev,dt,f1,K=1.0,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=-1.0,rho_0=1.0):
         """     
         This function returns the bilinear form for the system of PDES governing
         an advection-reaction-two-component flow, the governing
         PDEs for Darcy flow are:        
         div(u) = 0                                                          (1)
-        phi*u = -k*(grad(p)-drho*zhat)                                      (2)
-        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+        phi*u = -k*(grad(p)-rho*zhat)                                      (2)
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1**2/phi + beta*f (3)
         and  
-        dc1/dt = - Da*c0*c1/phi                                             (4)
+        dc1/dt = - 2*Da*c0*c1**2/phi                                             (4)
         where 
-        drho = 1 + c0                                                       (5)
+        drho = 1 + gam_rho c0                                                       (5)
         where c0 and c1 are concentrations of the reactants in the liquid
         and solid, u is the fluid velocity, p is pressure, k is permeability
         drho=difference between liquid and solid densities, zhat is a unit
@@ -776,6 +775,9 @@ class DarcyAdvection():
              f1       : Spatially variable scalar function for the source term
              K        : Constant permeability
              zh       : Unit vector in the vertical direction
+             SUPG     : A counter for chosing between different SUPG terms
+             gam_rho  : The coefficient of concentration in the expression for drho
+             rho_0    : The intercept in the expression for drho
         Output:
              lhs(F)   : Left hand side of the combined bilinear form
              rhs(F)   : Right hand side of the bilinear formulation
@@ -798,7 +800,9 @@ class DarcyAdvection():
         (v, q, vc, qc) = TestFunctions(W)
         u, p, uc, cc   = split(U)
         zhat=zh
-        deltarho=(1.0+uc)
+        # Density contrast as a function of concentration
+        deltarho=rho_0-gam_rho*uc
+        
         # Define the variational form
         F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx - K*deltarho*inner(v,zhat)*dx
         # uc and cc are the trial functions for the next time step
@@ -808,15 +812,22 @@ class DarcyAdvection():
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
         # First order reaction term
-        f = self.Da*u0*c0
+        # For chemical reaction
+        # MgCO3+2Fe = C + 3 Fe(2/3)Mg(1/3)O
+        # Assuming forward reaction controls the rate
+        f21 = self.Da*u0*c0*c0 #reaction rate for Fe
+        #Ratio of molar masses of MgCO3 and 2* Fe
+        fac = (24.0+12.0+3.0*16.0)/2.0/56.0
+        f11 = fac*self.Da*u0*c0*c0 #reaction rate for carbonate
+          
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
                 + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f/self.phi*vc*dx  - self.alpha/self.phi*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f/(1-self.phi)*qc*dx
+		+ dt*f11/self.phi*vc*dx  - self.beta*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f21/(1-self.phi)*qc*dx
         # Residual
         h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f/self.phi)\
-            - self.alpha/self.phi*dt*f1 + cc-c0 + dt*f/(1.0-self.phi)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+            - self.beta*dt*f1 + cc-c0 + dt*f21/(1.0-self.phi)
         # Add SUPG stabilisation terms
         # Default is Sendur 2018, a modification of Codina, 1997 also works
         vnorm = sqrt(dot(u, u))
@@ -836,7 +847,118 @@ class DarcyAdvection():
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG       
         return lhs(F), rhs(F)
-    
+    def advection_diffusion_three_component(self,W,mesh,sol_prev,dt,f1,K=1.0,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=-1.0,rho_0=1.0):
+        """     
+        This function returns the bilinear form for the system of PDES governing
+        an advection-reaction-two-component flow, the governing
+        PDEs for Darcy flow are:        
+        div(u) = 0                                                          (1)
+        phi*u = -k*(grad(p)-rho*zhat)                                      (2)
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1**2/phi + beta*f (3)
+        and  
+        dc1/dt = - 2*Da*c0*c1**2/phi                                             (4)
+        where 
+        drho = 1 + gam_rho c0                                                       (5)
+        where c0 and c1 are concentrations of the reactants in the liquid
+        and solid, u is the fluid velocity, p is pressure, k is permeability
+        drho=difference between liquid and solid densities, zhat is a unit
+        vecotr in vertically upward direction, Pe is Peclet number, Da is
+        the Dahmkoler number, beta is source strength, f is a function
+        for lateral variations in source of c0, and phi is the constant porosity
+        Input:
+             W        : Mixed function space containing velocity, pressure and two
+                        concentrations
+             mesh     : Fenics mesh on which W is defined
+             sol_prev : All unknowns from the previous time step
+             dt       : time step
+             f1       : Spatially variable scalar function for the source term
+             K        : Constant permeability
+             zh       : Unit vector in the vertical direction
+             SUPG     : A counter for chosing between different SUPG terms
+             gam_rho  : The coefficient of concentration in the expression for drho
+             rho_0    : The intercept in the expression for drho
+        Output:
+             lhs(F)   : Left hand side of the combined bilinear form
+             rhs(F)   : Right hand side of the bilinear formulation
+        The bilinear form uses Crank-Nicholson time stepping and gives 
+        several options for SUPG stabilization. We recommend using Sendur 2018 formulation
+        for the SUPG term.
+        The bilinear form, combined together, becomes
+        phi*dot(u,v)-k*p*div(v)+div(u)*q + eta*(c0n-c0nm1)+eta*dot(u,grad(c_mid))*dt
+                 +dt*dot(grad(c_mid),grad(eta))/Pe+(c1_n-c1_nm1)*omega
+                 = K*drho*dot(zhat,v)-Da*c0*c1*dt*eta/phi 
+                   - beta*f1*dt*eta + Da*c0*c1*dt*omega/(1-phi)
+        In this code c0 is uc, c1 is cc, eta is vc, omega is qc
+        We recommend using this function preferentially over the other functions as
+        this combines all four equations into one bilinear form. If the density contrast
+        is constant, just replace drho with a constant value.
+        """
+	h = CellDiameter(mesh)
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc,qc1) = TestFunctions(W)
+        u, p, uc, cc,cc1   = split(U)
+        zhat=zh
+        # Density contrast as a function of concentration
+        deltarho=rho_0-gam_rho*uc
+        
+        # Define the variational form
+        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx\
+            - K*deltarho*inner(v,zhat)*dx
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0), c0(component 1), and c1(component 3)
+        # are known values from the previous time step
+        u,p,u0 ,c0,c1 = split(sol_prev)
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+        # First order reaction term
+        # For chemical reaction
+        # MgCO3+2Fe = C + 3 Fe(2/3)Mg(1/3)O
+        # Assuming forward reaction controls the rate
+        # Total molar mass is calculated from
+        # MgCO3 = 24.0+12.0+3.0*16.0
+        # 2Fe = 2.0*56
+        # C   = 12.0
+        # 3 Fe(2/3)Mg(1/3)O = 3.0*(0.67*56.0+0.33*24.0+16.0)
+        # M = MgCO3+2*Fe+C+3*Oxide = 392.32
+        Total_molar_mass = 392.32
+        Fe_frac = 2.0*56.0/Total_molar_mass
+        carbonate_frac = 84.0/Total_molar_mass
+        C_frac = 12.0/Total_molar_mass
+        f21 = Fe_frac*self.Da*u0*c0*c0 #reaction rate for Fe
+        f11 = carbonate_frac*self.Da*u0*c0*c0 #reaction rate for carbonate
+        f31 = C_frac*self.Da*u0*c0*c0
+          
+	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ dt*f11/self.phi*vc*dx  - self.beta*dt*f1*vc*dx \
+                + qc*(cc - c0)*dx + dt*f21/(1-self.phi)*qc*dx \
+                + qc1*(cc1 - c1)*dx - dt*(f31/(1-self.phi))*qc1*dx
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+            - self.beta*dt*f1 + cc-c0 + dt*f21/(1.0-self.phi) + cc1-c1 - dt*f31/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        # Default is Sendur 2018, a modification of Codina, 1997 also works
+        vnorm = sqrt(dot(u, u))
+        
+        if SUPG==1:
+            #Sendur 2018
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        elif SUPG==2:
+            #Codina 1997 eq. 114
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+            #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        else:
+            alpha_SUPG=self.Pe*vnorm*h/2.0
+            #Brookes and Hughes
+            coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+            tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG       
+        return lhs(F), rhs(F)
+
 ###################################################################
 ### Advection diffusion equation in Stokes flow
 ###################################################################
@@ -846,17 +968,16 @@ class StokesAdvection():
     equation for a single or multicomponent flow, the governing
     PDEs for Stokes flow are:        
     div(u) = 0                                                          (1)
-    -grad(p)+mu*div(grad(u)) +drho*g =0                                 (2)
-    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
-    and  
-    dc1/dt = - Da*c0*c1/phi                                             (4)
-    where c0 and c1 are concentrations of the reactants in the liquid
-    and solid, u is the fluid velocity, p is pressure, k is permeability
-    drho=difference between liquid and solid densities, zhat is a unit
-    vecotr in vertically upward direction, Pe is Peclet number, Da is
-    the Dahmkoler number, beta is source strength, f is a function
-    for lateral variations in source of c0, and phi is the constant porosity
-
+    -grad(p)+div(grad(u)) = 0                                        (2)
+    
+    This code is useful for reactive Stokes flow through a known geometry. The
+    sample file uses a simple geometry file, but it can also be used to read
+    in 3D microtomographic images of connected pore space in natural reservoirs.
+    
+    The function stokes_ADR_precipitation carries out the additional reactions
+    for a three component system, following the reaction
+    An + H2CO3 = Ka + CaCO3
+ 
     On initiation of the class:
               the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
               the timestep dt and CFL criterion are also loaded to default
@@ -873,200 +994,271 @@ class StokesAdvection():
         self.cfl=cfl
         self.dt=dt
         self.alpha=alpha
-    def stokes(self,W,mesh,sol_prev,dt,f1,K=0.1,zh=Constant((1.0,0.0,0.0))):
-        """ This function substitutes in stokes flow instead of darcy flow
-            for use in pore space flow modelling where the solid phase has been
-            removed, making a phi value redundant            
+    def stokes_ADR_precipitation(self,W,mesh,sol_prev,dt,SUPG=2):
+        """     
+        This function returns the bilinear form for the system of PDES governing
+        an advection-reaction-two-component flow, the governing
+        PDEs for Stokes flow are:        
+        div(u) = 0                                                 (1)
+        laplacian(u) - grad(p)                                     (2)
+        And the advection diffusion reaction equations are
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1*    (3)
+        and  
+        dc1/dt = - fac1*Da*c0*c1                                   (4)
+        dc2/dt = fac2*Da*c0*c1                                     (5)
+        
+        where u is velocity, p is pressure, Pe is the PEclet number
+        Da is the Dahmkoehler number,  and c0 is the concentration of the reacting
+        solvent in the fluid and fac1 and fac2 are factors
+        to convert from volume fraction to mass fraction. The underlying chemical
+        reaction is
+        An + H2CO3 = Ka + CaCO3
+        c0 is the consentration of H2CO3 in the liquid
+        c1 is the concentration of An in the solid
+        c2 is the concentration of CaCO3 in the solid
+        Input:
+             W        : Mixed function space containing velocity, pressure and three
+                        concentrations
+             mesh     : Fenics mesh on which W is defined
+             sol_prev : All unknowns from the previous time step
+             dt       : time step
+             SUPG     : A counter for chosing between different SUPG terms
+             
+        Output:
+             lhs(F)   : Left hand side of the combined bilinear form
+             rhs(F)   : Right hand side of the bilinear formulation
+        The bilinear form uses Crank-Nicholson time stepping and gives 
+        several options for SUPG stabilization. 
+        We recommend using Sendur 2018 formulation
+        for the SUPG term.
         """
 	h = CellDiameter(mesh)
-
-	# TrialFunctions and TestFunctions
-        U = TrialFunction(W)
-        (v, q, vc, qc) = TestFunctions(W)
-        u, p, uc, cc   = split(U)
-        
-        zhat=zh
-
-        # Define the variational form
-	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per
-        # the darcy_advection_rho_posi_random function 		through the 1.0+uc term 
-
-        # uc and cc are the trial functions for the next time step
-        # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
-        u,p,u0 ,c0 = split(sol_prev)
-
-        # Mid-point solution for comp 0
-        u_mid = 0.5*(u0 + uc)
-
-        # First order reaction term
-        f = self.Da*u0*c0
-
-	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
-                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f*vc*dx  - self.alpha*dt*f1*vc*dx \
-                + qc*(cc - c0)*dx + dt*f*qc*dx
-        # Residual
-        h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
-            - self.alpha*dt*f1 + cc-c0 + dt*f
-        # Add SUPG stabilisation terms
-        vnorm = sqrt(dot(u, u))
-        
-
-        #alpha_SUPG=self.Pe*vnorm*h/2.0
-        #Brookes and Hughes
-        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
-        #term1_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
-        #Sendur 2018
-        #####tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
-        #Codina 1997 eq. 114
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
-        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
-        F += term_SUPG
-        
-        return lhs(F), rhs(F)
-
-    def stokes_no_alpha(self,W,mesh,sol_prev,dt,K=0.1,zh=Constant((1.0,0.0,0.0))):
-        """ This function substitutes in stokes flow instead of darcy flow
-            for use in pore space flow modelling where the solid phase has been
-            removed, making a phi value redundant            
-        """
-	h = CellDiameter(mesh)
-
+	
 	# TrialFunctions and TestFunctions
         U = TrialFunction(W)
         (v, q, vc, qc, qc1) = TestFunctions(W)
-        u, p, uc, cc, cc2   = split(U)
+        u, p, uc, cc, cc1 = split(U)
         
-        zhat=zh
-
-        # Define the variational form
-	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-        # Velocity is constant unless dependent on density as per the darcy_advection_rho_posi_random 		function through the 1.0+uc term 
-
+        
+        # Define the variational form for velocity and pressure equation
+	F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx 
         # uc and cc are the trial functions for the next time step
         # uc for comp cc and d comp1 
-        # u0 (component 0) and c0(component 1) are known values from the previous time step
-        u,p,u0 ,c0,cc0 = split(sol_prev)
-
+        # u0 (component 0), c0(component 1), and c1(component 3)
+        # are known values from the previous time step
+        u,p,u0,c0,c1 = split(sol_prev)
         # Mid-point solution for comp 0
         u_mid = 0.5*(u0 + uc)
-
         # First order reaction term
-        f = self.Da*u0*c0
-
+        # For chemical reaction
+        # H2CO3 + Anorthite = CaCO3 + Kaolinite
+        # Assuming forward reaction controls the rate
+        # Total molar mass is calculated from
+        # H2CO3 = 62
+        # Anorthite = 278
+        # CaCO3 = 100
+	# Kaolinite = 258
+        # Total Mass = 698
+        Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        calcite_frac = 100.0/Total_molar_mass
+        
+        f21 = An_frac*self.Da*u0*c0 #reaction rate for An
+        f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for carbonic acid
+        f31 = calcite_frac*self.Da*u0*c0
+        
+	# Define the variational form for advection, diffusion and reaction equation
 	F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
-                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		+ dt*f*vc*dx\
-                + qc*(cc - c0)*dx + dt*f*qc*dx + qc1*(cc2 - cc0)*dx - dt*f*qc1*dx
-	# Positive dt*f*qc*dx for consumption of Ca
-	# Negative dt*f*qc1*dx for precipitation of C
-
-        # Residuals
+                                   + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		                   + dt*f11*vc*dx \
+                                   + qc*(cc - c0)*dx + dt*f21*qc*dx + qc1*(cc1 - c1)*dx - dt*f31*qc1*dx
+        # Residual
         h = CellDiameter(mesh)
-        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f)\
-            + cc-c0 + dt*f + cc2 - cc0 -dt*f
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11)\
+            + cc-c0 + dt*f21 + cc1-c1 - dt*f31
         # Add SUPG stabilisation terms
+        # Default is Codina, 1998
         vnorm = sqrt(dot(u, u))
-       
-
-
-        #alpha_SUPG=self.Pe*vnorm*h/2.0
-        #Brookes and Hughes
-        #coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
-        #tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
-        #Sendur 2018
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
-        #Codina 1997 eq. 114
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-        #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        
+        if SUPG==1:
+            #Sendur 2018
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        elif SUPG==2:
+            #Codina 1998 eq. 114
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+        else:
+            alpha_SUPG=self.Pe*vnorm*h/2.0
+            #Brookes and Hughes
+            coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+            tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
         term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
         F += term_SUPG
+
+       
+        return lhs(F), rhs(F)
+###################################################################
+### Advection diffusion equation in Darcy flow
+### Special case for CCS applications
+###################################################################
+class CCS():
+    """
+    This class solves for a simple advection-diffusion
+    equation for a single or multicomponent flow, the governing
+    PDEs for Darcy flow are:        
+    div(u) = 0                                                          (1)
+    phi*u = -k*(grad(p)-drho*zhat)                                      (2)
+    dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1/phi + beta*f (3)
+    dc1/dt = -fac1*Da*c0*c1/phi                                             (4)
+    and 
+    dc2/dt = fac2*Da*c0*c1/phi
+    where c0 and c1 are concentrations of the reactants in the liquid
+    and solid, u is the fluid velocity, p is pressure, k is permeability
+    drho=difference between liquid and solid densities, zhat is a unit
+    vecotr in vertically upward direction, Pe is Peclet number, Da is
+    the Dahmkoler number, beta is source strength, f is a function
+    for lateral variations in source of c0, and phi is the constant porosity.
+    c2 is the concentration of solid product, fac1 and fac2 are factors
+    to convert from volume fraction to mass fraction. The underlying chemical
+    reaction is
+    An + H2CO3 = Ka + CaCO3
+    c0 is the consentration of H2CO3 in the liquid
+    c1 is the concentration of An in the solid
+    c2 is the concentration of CaCO3 in the solid
+
+    On initiation of the class:
+              the dimensionless numbers, Pe, Da, alpha =beta*phi are loaded
+              the timestep dt and CFL criterion are also loaded to default
+              values.
+    For the remaining functions, see the docstring of each individual function
+    for help.
+    """
+    
+    def __init__(self,Pe=100,Da=10.0,phi=0.01,alpha=0.005,cfl=1.0e-2,dt=1.0e-2):
+        """Initiates the class. Inherits nondimensional numbers
+        from compaction, only need to add Pe"""
+        self.Pe=Pe
+        self.Da=Da
+        self.phi=phi
+        self.cfl=cfl
+        self.dt=dt
+        self.alpha=alpha
+        self.beta=alpha/phi
+    def advection_diffusion_three_component(self,W,mesh,sol_prev,dt,f_source,K=1.0,zh=Constant((0.0,1.0)),SUPG=1,gam_rho=1.0):
+        """     
+        This function returns the bilinear form for the system of PDES governing
+        an advection-reaction-two-component flow, the governing
+        PDEs for Darcy flow are:        
+        div(u) = 0                                                 (1)
+        phi*u = -k*(grad(p)+rho*zhat)                              (2)
+        dc0/dt + dot(u,grad(c0)) = div(grad(c0))/Pe - Da*c0*c1*/phi 
+        + beta*f                                                   (3)
+        and  
+        dc1/dt = - fac1*Da*c0*c1/(1-phi)                           (4)
+        dc2/dt = fac2*Da*c0*c1/(1-phi)                             (5)
+        where 
+        rho = 1 + gam_rho c0                                       (6)
+        where c0 and c1 are concentrations of the reactants in the liquid
+        and solid, u is the fluid velocity, p is pressure, k is permeability
+        drho=difference between liquid and solid densities, zhat is a unit
+        vecotr in vertically upward direction, Pe is Peclet number, Da is
+        the Dahmkoler number, beta is source strength, f is a function
+        for lateral variations in source of c0, and phi is the constant porosity
+        Input:
+             W        : Mixed function space containing velocity, pressure and three
+                        concentrations
+             mesh     : Fenics mesh on which W is defined
+             sol_prev : All unknowns from the previous time step
+             dt       : time step
+             f_source       : Spatially variable scalar function for the source term
+             K        : Constant permeability
+             zh       : Unit vector in the vertical direction
+             SUPG     : A counter for chosing between different SUPG terms
+             gam_rho  : The coefficient of concentration in the expression for drho
+             
+        Output:
+             lhs(F)   : Left hand side of the combined bilinear form
+             rhs(F)   : Right hand side of the bilinear formulation
+        The bilinear form uses Crank-Nicholson time stepping and gives 
+        several options for SUPG stabilization. 
+        We recommend using Sendur 2018 formulation
+        for the SUPG term.
+        The bilinear form, combined together, becomes
         
+        We recommend using this function preferentially over the other
+        functions as
+        this combines all four equations into one bilinear form. 
+        If the density contrast
+        is constant, just replace drho with a constant value
+        """
+	h = CellDiameter(mesh)
+	# TrialFunctions and TestFunctions
+        U = TrialFunction(W)
+        (v, q, vc, qc,qc1) = TestFunctions(W)
+        u, p, uc, cc,cc1   = split(U)
+        zhat=zh
+        # Density contrast as a function of concentration
+        deltarho=1.0+gam_rho*uc
+        
+        # Define the variational form
+        F = (inner(self.phi*u,v) - K*div(v)*p+div(u)*q)*dx + K*deltarho*inner(v,zhat)*dx
+        # uc and cc are the trial functions for the next time step
+        # uc for comp cc and d comp1 
+        # u0 (component 0) and c0(component 1)
+        # are known values from the previous time step
+        u,p,u0 ,c0,c1 = split(sol_prev)
+        # Mid-point solution for comp 0
+        u_mid = 0.5*(u0 + uc)
+        # Second order reaction term
+        # Assuming forward reaction controls the rate
+        # For chemical reaction
+        # H2CO3 + Anorthite = CaCO3 + Kaolinite
+        # Total molar mass is calculated from
+        # H2CO3 = 62
+        # Anorthite0 = 278
+        # CaCO3 = 100
+	# Kaolinite = 258
+        # Total Mass = 698
+        Total_molar_mass = 698.0
+        An_frac = 278.0/Total_molar_mass
+        H2CO3_frac = 62.0/Total_molar_mass
+        CaCO3_frac = 100.0/Total_molar_mass
+
+        f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for H2CO3
+	f21 = An_frac*self.Da*u0*c0 #reaction rate for An
+        f31 = CaCO3_frac*self.Da*u0*c0 #reaction rate for CaCO3
+        
+        F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
+                + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
+		+ (dt*f11/self.phi)*vc*dx  - self.beta*dt*f_source*vc*dx \
+                + qc*(cc - c0)*dx + dt*(f21/(1-self.phi))*qc*dx \
+		+ qc1*(cc1 - c1)*dx - dt*(f31/(1-self.phi))*qc1*dx
+          
+      
+        # Residual
+        h = CellDiameter(mesh)
+        r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+            - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f31/(1.0-self.phi)
+        #r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11/self.phi)\
+        #    - self.beta*dt*f_source + cc-c0 + dt*f21/(1.0-self.phi)+ cc1-c1 - dt*f21/(1.0-self.phi)
+        # Add SUPG stabilisation terms
+        # Default is Sendur 2018, a modification of Codina, 1997 also works
+        vnorm = sqrt(dot(u, u))
+        
+        if SUPG==1:
+            #Sendur 2018
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
+        elif SUPG==2:
+            #Codina 1997 eq. 114
+            tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
+            #tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da*np.max(c0)/self.phi)
+        else:
+            alpha_SUPG=self.Pe*vnorm*h/2.0
+            #Brookes and Hughes
+            coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
+            tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
+        term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
+        F += term_SUPG       
         return lhs(F), rhs(F)
 
-    def stokes_ADR_precipitation(self,W,mesh,sol_prev,dt,zh=Constant((1.0,0.0,0.0)),SUPG=2):
-
-	    h = CellDiameter(mesh)
-	    
-	    # TrialFunctions and TestFunctions
-            U = TrialFunction(W)
-            (v, q, vc, qc, qc1) = TestFunctions(W)
-            u, p, uc, cc, cc1 = split(U)
-            zhat=zh
-            
-        # Define the variational form for velocity and pressure equation
-	    F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-            # uc and cc are the trial functions for the next time step
-            # uc for comp cc and d comp1 
-            # u0 (component 0), c0(component 1), and c1(component 3)
-            # are known values from the previous time step
-            u,p,u0,c0,c1 = split(sol_prev)
-            # Mid-point solution for comp 0
-            u_mid = 0.5*(u0 + uc)
-            # First order reaction term
-            # For chemical reaction
-            # H2CO3 + Anorthite = CaCO3 + Kaolinite
-            # Assuming forward reaction controls the rate
-            # Total molar mass is calculated from
-            # H2CO3 = 62
-            # Anorthite = 278
-            # CaCO3 = 100
-	   	    # Kaolinite = 258
-            # Total Mass = 698
-            Total_molar_mass = 698.0
-            An_frac = 278.0/Total_molar_mass
-            H2CO3_frac = 62.0/Total_molar_mass
-            calcite_frac = 100.0/Total_molar_mass
-
-            f21 = An_frac*self.Da*u0*c0 #reaction rate for An
-            f11 = H2CO3_frac*self.Da*u0*c0 #reaction rate for carbonic acid
-            f31 = calcite_frac*self.Da*u0*c0
-            
-		# Define the variational form for advection, diffusion and reaction equation
-	    F += vc*(uc - u0)*dx + dt*(vc*dot(u, grad(u_mid))*dx\
-                    + dot(grad(vc), grad(u_mid)/self.Pe)*dx) \
-		    + dt*f11*vc*dx \
-                    + qc*(cc - c0)*dx + dt*f21*qc*dx + qc1*(cc1 - c1)*dx - dt*f31*qc1*dx
-            # Residual
-            h = CellDiameter(mesh)
-            r = uc - u0 + dt*(dot(u, grad(u_mid)) - div(grad(u_mid))/self.Pe+f11)\
-                + cc-c0 + dt*f21 + cc1-c1 - dt*f31
-            # Add SUPG stabilisation terms
-            # Default is Codina, 1998
-            vnorm = sqrt(dot(u, u))
-            
-            if SUPG==1:
-                #Sendur 2018
-                tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h)
-            elif SUPG==2:
-                #Codina 1998 eq. 114
-                tau_SUPG = 1.0/(4.0/(self.Pe*h*h)+2.0*vnorm/h+self.Da)
-            else:
-                alpha_SUPG=self.Pe*vnorm*h/2.0
-                #Brookes and Hughes
-                coth = (np.e**(2.0*alpha_SUPG)+1.0)/(np.e**(2.0*alpha_SUPG)-1.0)
-                tau_SUPG=0.5*h*(coth-1.0/alpha_SUPG)/vnorm
-            term_SUPG = tau_SUPG*dot(u, grad(vc))*r*dx
-            F += term_SUPG       
-            return lhs(F), rhs(F)
-
-    def stokes_velocity(self,W,mesh,sol_prev,zh=Constant((1.0,0.0,0.0))):
-
-	    h = CellDiameter(mesh)
-	    # TrialFunctions and TestFunctions
-            (u, p) = TrialFunctions(W)
-            (v, q) = TestFunctions(W)
-            zhat=zh
-            
-            # Define the variational form
-	    F = inner(grad(u),grad(v))*dx + div(v)*p*dx + q*div(u)*dx - inner(zhat, v)*dx
-           
-            u,p = split(sol_prev)
-           
-            return lhs(F), rhs(F)
 
